@@ -1,0 +1,2324 @@
+{
+  "info": {
+    "name": "HRMS — RBAC, Workflow & Leave",
+    "description": "End-to-end walkthrough of the multi-tenant HRMS API.\n\nRun the folders in order, or use the Collection Runner on the whole collection.\nReset the database first (npm run db:reset) — some requests are one-shot by design (a published workflow version, overlapping leave dates).\n\nTokens are captured automatically by the login requests in folder 1.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1 · Health & login",
+      "item": [
+        {
+          "name": "01. Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02. Login — Rahul (employee)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"rahul@abc.test\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "var b = pm.response.json();",
+                  "pm.collectionVariables.set(\"token_rahul\", b.accessToken);",
+                  "pm.test(\"token returned\", function () { if (!b.accessToken) throw new Error(\"no accessToken\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03. Login — Krishna (manager)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"krishna@abc.test\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"token_krishna\", pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04. Login — Suresh (HR admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"suresh@abc.test\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"token_suresh\", pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05. Login — Asha (tenant admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"asha@abc.test\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"token_asha\", pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06. Login — Meera (OTHER tenant)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"meera@xyz.test\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"token_meera\", pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07. Login — wrong password → 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"rahul@abc.test\",\n  \"password\": \"nope\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 401\", function () {",
+                  "  if (pm.response.code !== 401) {",
+                  "    throw new Error(\"Expected 401, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08. Who am I (Rahul)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "var b = pm.response.json();",
+                  "pm.collectionVariables.set(\"user_rahul_id\", b.userId);",
+                  "pm.test(\"employee is linked\", function () { if (!b.employeeId) throw new Error(\"no employeeId\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 · Employee applies for leave",
+      "item": [
+        {
+          "name": "09. My balances before",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave-balances/me?year=2026"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"20 available\", function () { if (pm.response.json()[0].available !== 20) throw new Error(\"expected 20\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. Apply for leave (5–9 Nov)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leaveType\": \"annual\",\n  \"startDate\": \"2026-11-05\",\n  \"endDate\": \"2026-11-09\",\n  \"reason\": \"Personal work\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/leave-requests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "  if (pm.response.code !== 201) {",
+                  "    throw new Error(\"Expected 201, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "var b = pm.response.json();",
+                  "pm.collectionVariables.set(\"leave_id\", b.id);",
+                  "pm.collectionVariables.set(\"instance_id\", b.workflow.instance.id);",
+                  "pm.test(\"server computed 3 working days, not 5\", function () {",
+                  "  if (b.totalDays !== 3) throw new Error(\"expected 3, got \" + b.totalDays);",
+                  "});",
+                  "pm.test(\"first approver is the reporting manager\", function () {",
+                  "  if (b.workflow.tasks[0].assigned_to_name !== \"Krishna\") throw new Error(\"unexpected approver\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11. My balances after (3 reserved)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave-balances/me?year=2026"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"3 pending, 17 available\", function () {",
+                  "  var b = pm.response.json()[0];",
+                  "  if (b.pending !== 3 || b.available !== 17) throw new Error(JSON.stringify(b));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12. My leave requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave-requests?scope=own"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13. One request + approval trail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave-requests/{{leave_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14. Reject stray totalDays → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leaveType\": \"annual\",\n  \"startDate\": \"2026-12-01\",\n  \"endDate\": \"2026-12-02\",\n  \"totalDays\": 99\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/leave-requests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () {",
+                  "  if (pm.response.code !== 422) {",
+                  "    throw new Error(\"Expected 422, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15. Overlapping dates → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leaveType\": \"annual\",\n  \"startDate\": \"2026-11-09\",\n  \"endDate\": \"2026-11-10\",\n  \"reason\": \"overlap\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/leave-requests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () {",
+                  "  if (pm.response.code !== 409) {",
+                  "    throw new Error(\"Expected 409, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3 · Manager approves",
+      "item": [
+        {
+          "name": "16. Krishna · My Approvals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/workflows/my-tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "var b = pm.response.json();",
+                  "pm.test(\"one task waiting\", function () { if (!b.length) throw new Error(\"inbox empty\"); });",
+                  "pm.collectionVariables.set(\"task_id\", b[0].task_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "17. Task detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/workflows/tasks/{{task_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "18. Priya cannot approve it → 404",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_priya}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/workflows/tasks/{{task_id}}/approve"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Priya is a colleague, not the approver.",
+                  "pm.sendRequest({",
+                  "  url: pm.collectionVariables.get(\"baseUrl\") + \"/api/v1/auth/login\",",
+                  "  method: \"POST\", header: { \"content-type\": \"application/json\" },",
+                  "  body: { mode: \"raw\", raw: JSON.stringify({ email: \"priya@abc.test\", password: \"Passw0rd!\" }) }",
+                  "}, function (err, res) { if (!err) pm.collectionVariables.set(\"token_priya\", res.json().accessToken); });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () {",
+                  "  if (pm.response.code !== 404) {",
+                  "    throw new Error(\"Expected 404, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "19. Other tenant cannot approve it → 404",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_meera}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/workflows/tasks/{{task_id}}/approve"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () {",
+                  "  if (pm.response.code !== 404) {",
+                  "    throw new Error(\"Expected 404, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "20. Krishna approves",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comments\": \"Approved by manager\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/workflows/tasks/{{task_id}}/approve"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"moved to step 2\", function () {",
+                  "  var b = pm.response.json();",
+                  "  if (b.instance.currentStepOrder !== 2 || b.instance.status !== \"pending\") throw new Error(JSON.stringify(b.instance));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "21. Approve again → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/workflows/tasks/{{task_id}}/approve"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () {",
+                  "  if (pm.response.code !== 409) {",
+                  "    throw new Error(\"Expected 409, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 · HR approves, balance is debited",
+      "item": [
+        {
+          "name": "22. Suresh · My Approvals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/workflows/my-tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "var b = pm.response.json();",
+                  "pm.test(\"HR step is waiting\", function () { if (!b.length) throw new Error(\"inbox empty\"); });",
+                  "pm.collectionVariables.set(\"task_hr_id\", b[0].task_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "23. Suresh approves (final)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comments\": \"Approved by HR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/workflows/tasks/{{task_hr_id}}/approve"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"workflow approved\", function () {",
+                  "  if (pm.response.json().instance.status !== \"approved\") throw new Error(\"not approved\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "24. Leave is approved",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave-requests/{{leave_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"status approved\", function () {",
+                  "  if (pm.response.json().status !== \"approved\") throw new Error(\"not approved\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "25. Balance debited once",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave-balances/me?year=2026"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"used 3, pending 0\", function () {",
+                  "  var b = pm.response.json()[0];",
+                  "  if (b.used !== 3 || b.pending !== 0) throw new Error(JSON.stringify(b));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "26. Full approval history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/workflows/instances/{{instance_id}}/history"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"submit → approve → approve → complete\", function () {",
+                  "  var acts = pm.response.json().history.map(function (h) { return h.action; }).join(\",\");",
+                  "  if (acts !== \"submit,approve,approve,complete\") throw new Error(acts);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5 · Return, resubmit, reject",
+      "item": [
+        {
+          "name": "27. Rahul applies again (16–17 Nov)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leaveType\": \"annual\",\n  \"startDate\": \"2026-11-16\",\n  \"endDate\": \"2026-11-17\",\n  \"reason\": \"Family function\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/leave-requests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "  if (pm.response.code !== 201) {",
+                  "    throw new Error(\"Expected 201, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"leave_id2\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "28. Krishna · get the new task",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/workflows/my-tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"task_id2\", pm.response.json()[0].task_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "29. Return without a comment → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/workflows/tasks/{{task_id2}}/return"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () {",
+                  "  if (pm.response.code !== 422) {",
+                  "    throw new Error(\"Expected 422, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "30. Return for correction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comments\": \"Please add handover details\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/workflows/tasks/{{task_id2}}/return"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"returned\", function () {",
+                  "  if (pm.response.json().instance.status !== \"returned\") throw new Error(\"not returned\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "31. Rahul resubmits (cycle 2)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Family function — handover to Priya\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/leave-requests/{{leave_id2}}/resubmit"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"cycle 2\", function () {",
+                  "  if (pm.response.json().workflow.instance.cycle !== 2) throw new Error(\"expected cycle 2\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "32. Krishna · task for cycle 2",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/workflows/my-tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"task_id3\", pm.response.json()[0].task_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "33. Krishna rejects",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comments\": \"Team is on release duty that week\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/workflows/tasks/{{task_id3}}/reject"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "34. Reservation released",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave-balances/me?year=2026"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"pending back to 0\", function () {",
+                  "  var b = pm.response.json()[0];",
+                  "  if (b.pending !== 0 || b.used !== 3) throw new Error(JSON.stringify(b));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6 · Separation of duties",
+      "item": [
+        {
+          "name": "35. HR admin applies for own leave",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leaveType\": \"annual\",\n  \"startDate\": \"2026-11-19\",\n  \"endDate\": \"2026-11-19\",\n  \"reason\": \"Personal\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/leave-requests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "  if (pm.response.code !== 201) {",
+                  "    throw new Error(\"Expected 201, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "var b = pm.response.json();",
+                  "pm.collectionVariables.set(\"leave_hr_id\", b.id);",
+                  "pm.test(\"goes to HIS manager, not himself\", function () {",
+                  "  if (b.workflow.tasks[0].assigned_to_name !== \"Vikram\") throw new Error(b.workflow.tasks[0].assigned_to_name);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "36. It is NOT in his own inbox",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/workflows/my-tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"cannot approve own request\", function () {",
+                  "  var mine = pm.collectionVariables.get(\"leave_hr_id\");",
+                  "  var found = pm.response.json().filter(function (t) { return String(t.entity_id) === String(mine); });",
+                  "  if (found.length) throw new Error(\"own request appeared in own inbox\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7 · RBAC",
+      "item": [
+        {
+          "name": "37. Permission catalog",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/permissions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "38. Roles + their permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/roles"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "var roles = pm.response.json();",
+                  "pm.collectionVariables.set(\"role_hr_id\", roles.filter(function (r) { return r.name === \"HR Admin\"; })[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "39. Create a role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Leave Auditor\",\n  \"description\": \"Read-only access to all leave\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/roles"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "  if (pm.response.code !== 201) {",
+                  "    throw new Error(\"Expected 201, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"role_new_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "40. Grant it permissions",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissions\": [\n    \"leave.view.all\",\n    \"leave.view.team\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/roles/{{role_new_id}}/permissions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "41. Assign the role to Rahul",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roleId\": \"{{role_new_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/{{user_rahul_id}}/roles"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "  if (pm.response.code !== 201) {",
+                  "    throw new Error(\"Expected 201, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"assignment_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "42. Rahul's effective permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users/{{user_rahul_id}}/permissions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"gained leave.view.all\", function () {",
+                  "  if (pm.response.json().indexOf(\"leave.view.all\") === -1) throw new Error(\"role not applied\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "43. Revoke the assignment",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users/{{user_rahul_id}}/roles/{{assignment_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", function () {",
+                  "  if (pm.response.code !== 204) {",
+                  "    throw new Error(\"Expected 204, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "44. Escalation blocked → 403",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissions\": [\n    \"leave.approve\",\n    \"payroll.process\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/roles/{{role_hr_id}}/permissions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", function () {",
+                  "  if (pm.response.code !== 403) {",
+                  "    throw new Error(\"Expected 403, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "45. Employee cannot read roles → 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/roles"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", function () {",
+                  "  if (pm.response.code !== 403) {",
+                  "    throw new Error(\"Expected 403, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8 · Workflow builder",
+      "item": [
+        {
+          "name": "46. List definitions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/workflows/definitions?module=leave"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "var d = pm.response.json().filter(function (x) { return x.status === \"published\"; })[0];",
+                  "pm.collectionVariables.set(\"def_id\", d.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "47. Definition + steps",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/workflows/definitions/{{def_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "48. Clone to a draft (v2)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/workflows/definitions/{{def_id}}/clone"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "  if (pm.response.code !== 201) {",
+                  "    throw new Error(\"Expected 201, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"draft_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "49. Edit draft — HR only above 2 days",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Leave Approval\",\n  \"steps\": [\n    {\n      \"name\": \"Manager Approval\",\n      \"approverType\": \"reporting_manager\",\n      \"requiredPermission\": \"leave.approve\",\n      \"onNoApprover\": \"fallback_role\",\n      \"fallbackRoleId\": \"{{role_hr_id}}\",\n      \"slaHours\": 48\n    },\n    {\n      \"name\": \"HR Approval\",\n      \"approverType\": \"role\",\n      \"approverRoleId\": \"{{role_hr_id}}\",\n      \"requiredPermission\": \"leave.approve\",\n      \"approvalMode\": \"any\",\n      \"condition\": {\n        \"field\": \"totalDays\",\n        \"op\": \"gt\",\n        \"value\": 2\n      },\n      \"slaHours\": 48\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/workflows/definitions/{{draft_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "50. Validate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/workflows/definitions/{{draft_id}}/validate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"no errors\", function () {",
+                  "  if (pm.response.json().errors.length) throw new Error(JSON.stringify(pm.response.json().errors));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "51. Publish v2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/workflows/definitions/{{draft_id}}/publish"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"published as version 2\", function () {",
+                  "  var b = pm.response.json();",
+                  "  if (b.status !== \"published\" || b.version !== 2) throw new Error(JSON.stringify({ s: b.status, v: b.version }));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "52. Short leave now skips HR",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leaveType\": \"annual\",\n  \"startDate\": \"2026-12-01\",\n  \"endDate\": \"2026-12-01\",\n  \"reason\": \"One day\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/leave-requests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "  if (pm.response.code !== 201) {",
+                  "    throw new Error(\"Expected 201, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"leave_id3\", pm.response.json().id);",
+                  "pm.collectionVariables.set(\"task_id4\", pm.response.json().workflow.tasks[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "53. Manager approval completes it",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comments\": \"Fine\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/workflows/tasks/{{task_id4}}/approve"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"approved after one step (HR skipped)\", function () {",
+                  "  if (pm.response.json().instance.status !== \"approved\") throw new Error(\"expected approved\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "54. Invalid condition field → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"module\": \"leave\",\n  \"name\": \"Bad workflow\",\n  \"steps\": [\n    {\n      \"name\": \"Step\",\n      \"approverType\": \"reporting_manager\",\n      \"requiredPermission\": \"leave.approve\",\n      \"condition\": {\n        \"field\": \"salary\",\n        \"op\": \"gt\",\n        \"value\": 1\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/workflows/definitions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"rejected at create or publish\", function () {",
+                  "  if (pm.response.code !== 201 && pm.response.code !== 422 && pm.response.code !== 409) {",
+                  "    throw new Error(\"unexpected \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "9 · Auth & tenancy checks",
+      "item": [
+        {
+          "name": "55. No token → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/leave-requests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 401\", function () {",
+                  "  if (pm.response.code !== 401) {",
+                  "    throw new Error(\"Expected 401, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "56. Garbage token → 401",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_bogus}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave-requests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 401\", function () {",
+                  "  if (pm.response.code !== 401) {",
+                  "    throw new Error(\"Expected 401, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "57. Mistyped URL → 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave-requestz"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () {",
+                  "  if (pm.response.code !== 404) {",
+                  "    throw new Error(\"Expected 404, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "58. Other tenant sees nothing",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_meera}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave-requests?scope=all"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"no rows from tenant 1\", function () {",
+                  "  if (pm.response.json().length !== 0) throw new Error(\"cross-tenant leak\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "59. Other tenant's leave by id → 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_meera}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave-requests/{{leave_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () {",
+                  "  if (pm.response.code !== 404) {",
+                  "    throw new Error(\"Expected 404, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "60. Malformed JSON → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"leaveType\": \"annual\",,}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/leave-requests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () {",
+                  "  if (pm.response.code !== 400) {",
+                  "    throw new Error(\"Expected 400, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000"
+    },
+    {
+      "key": "token_bogus",
+      "value": "not.a.real.token"
+    },
+    {
+      "key": "token_rahul",
+      "value": ""
+    },
+    {
+      "key": "token_krishna",
+      "value": ""
+    },
+    {
+      "key": "token_suresh",
+      "value": ""
+    },
+    {
+      "key": "token_asha",
+      "value": ""
+    },
+    {
+      "key": "token_meera",
+      "value": ""
+    },
+    {
+      "key": "token_priya",
+      "value": ""
+    },
+    {
+      "key": "user_rahul_id",
+      "value": ""
+    },
+    {
+      "key": "leave_id",
+      "value": ""
+    },
+    {
+      "key": "leave_id2",
+      "value": ""
+    },
+    {
+      "key": "leave_id3",
+      "value": ""
+    },
+    {
+      "key": "leave_hr_id",
+      "value": ""
+    },
+    {
+      "key": "instance_id",
+      "value": ""
+    },
+    {
+      "key": "task_id",
+      "value": ""
+    },
+    {
+      "key": "task_id2",
+      "value": ""
+    },
+    {
+      "key": "task_id3",
+      "value": ""
+    },
+    {
+      "key": "task_id4",
+      "value": ""
+    },
+    {
+      "key": "task_hr_id",
+      "value": ""
+    },
+    {
+      "key": "role_hr_id",
+      "value": ""
+    },
+    {
+      "key": "role_new_id",
+      "value": ""
+    },
+    {
+      "key": "assignment_id",
+      "value": ""
+    },
+    {
+      "key": "def_id",
+      "value": ""
+    },
+    {
+      "key": "draft_id",
+      "value": ""
+    }
+  ]
+}
