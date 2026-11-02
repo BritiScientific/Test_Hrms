@@ -22,9 +22,7 @@ export function fromPgError(err: any): AppError | null {
     case '23P01':
       return conflict('OVERLAP', overlapMessage(err.constraint));
     case '23505':
-      return conflict('DUPLICATE', 'A record with the same unique values already exists', {
-        constraint: err.constraint,
-      });
+      return conflict('DUPLICATE', duplicateMessage(err.constraint), { constraint: err.constraint });
     case '23503':
       return unprocessable('INVALID_REFERENCE', 'Referenced record does not exist in this tenant');
     case '23514':
@@ -33,6 +31,17 @@ export function fromPgError(err: any): AppError | null {
       return forbidden('FORBIDDEN', 'Operation not permitted');
     default:
       return null;
+  }
+}
+
+function duplicateMessage(constraint?: string): string {
+  switch (constraint) {
+    case 'uq_roles_name':
+      return 'A role with this name already exists';
+    case 'uq_tenants_slug':
+      return 'An organization with this slug already exists';
+    default:
+      return 'A record with the same unique values already exists';
   }
 }
 

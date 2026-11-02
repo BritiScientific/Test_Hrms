@@ -1,8 +1,12 @@
-# HRMS — RBAC, Workflow Engine, Leave Management
+# HRMS — Tenant portal, RBAC, Workflow Engine, Leave Management
 
-Multi-tenant (shared schema + PostgreSQL RLS) implementation of the RBAC engine,
-a reusable approval workflow engine, and Leave Management as its first module.
-Stack: Node.js 20+, Express 4, TypeScript, PostgreSQL 15+ (tested on 16), zod, pg.
+Multi-tenant (shared schema + PostgreSQL RLS) HRMS with a React tenant portal.
+
+* **Backend** (repo root): Node.js 20+, Express 4, TypeScript, PostgreSQL 15+ (tested on 16), zod, pg.
+  RBAC engine, reusable approval workflow engine, Leave Management, sessions, organization onboarding/profile.
+* **Frontend** (`frontend/`): React 19, TypeScript, Tailwind CSS 4, React Router, TanStack Query,
+  React Hook Form + zod, lucide icons. Delivers Milestones 1 (foundation & shell), 2 (organization
+  onboarding & profile) and 4 (RBAC & permission management).
 
 ## Quick start
 
@@ -13,9 +17,20 @@ npm run db:reset         # creates roles + database, runs migrations, loads the 
 npm run dev              # API on http://localhost:4000
 ```
 
+Then the web portal (second terminal):
+
+```bash
+npm run web:install      # once
+npm run web:dev          # http://localhost:5173 — proxies /api to :4000
+```
+
 `npm run db:reset` is a Node script — it works on Windows, macOS and Linux and needs no `psql`.
 (`npm run db:reset:bash` is the same thing via psql, if you prefer.)
-Verify with `npm run typecheck` and `npm test` (30 integration tests against the real database).
+Verify with `npm run typecheck` and `npm test` (59 integration tests against the real database,
+run one file at a time because each resets the database). Frontend: `npm run web:test` (Vitest) and,
+with both servers running on a freshly reset database, `npm --prefix frontend run test:e2e`
+(Playwright: user flows plus every main screen at 320–2560 px checked for horizontal overflow;
+screenshots land in `frontend/e2e/screenshots/`).
 
 ### Postman
 
@@ -27,7 +42,9 @@ workflow version, overlapping leave dates).
 
 Seed users (password `Passw0rd!`): `rahul@abc.test` (employee), `krishna@abc.test`
 (manager), `suresh@abc.test` / `anita@abc.test` (HR Admin), `vikram@abc.test`
-(Suresh's manager), `asha@abc.test` (Tenant Admin), and tenant 2: `meera@xyz.test`, `arjun@xyz.test`.
+(Suresh's manager), `asha@abc.test` (Tenant Admin), and tenant 2: `meera@xyz.test` (HR + Tenant Admin;
+XYZ has **not** finished onboarding, so she lands in the setup wizard), `arjun@xyz.test`.
+`kiran@partners.test` belongs to **both** organizations (exercises organization selection).
 
 ```bash
 TOKEN=$(curl -s localhost:4000/api/v1/auth/login -H 'content-type: application/json' \
@@ -37,6 +54,55 @@ curl -s localhost:4000/api/v1/leave-requests -H "authorization: Bearer $TOKEN" \
   -d '{"leaveType":"annual","startDate":"2026-11-05","endDate":"2026-11-09","reason":"Personal work"}'
 # -> totalDays: 3 (server-computed), task assigned to Krishna
 ```
+
+## Tenant portal (frontend)
+
+| Area | Routes |
+|---|---|
+| Sign-in | `/login`, `/select-organization` (only for multi-organization accounts), `/activate?token=…`, `/session-expired`, `/unauthorized` |
+| Portal | `/dashboard` (only API-backed figures: pending approvals, members, roles, your permissions, setup progress, recent audit) |
+| Onboarding | `/onboarding?step=details\|address\|preferences\|branding\|review` |
+| Settings (own sidebar + back arrow) | `/settings/organization/profile`, `/settings/organization/preferences`, `/settings/access/roles[/new\|/:id\|/:id/permissions]`, `/settings/access/permissions`, `/settings/access/assignments`, `/settings/access/users/:id/permissions`, `/settings/security` |
+
+* Future modules (employees, attendance, leave, payroll, recruitment, performance, training,
+  reports) appear only under a collapsed **Coming later** group, disabled and labelled “Soon”.
+* Menus and route guards are built from `/me` permissions for UX only; every API call is
+  authorized server-side.
+* Layout: drawer below 1024 px, fixed sidebar collapsible to an icon rail above it,
+  `max-w-workspace` (1600 px) content, slightly larger base font at ≥1920 px; tables turn into
+  cards or scroll inside their own container on small screens.
+
+### Sessions (Milestone 1)
+
+* Login creates an `auth_sessions` row; the JWT carries its id (`sid`) and `authenticate()` checks it on
+  every request, so **logout, organization switch and session revocation take effect immediately**.
+* The SPA sends `X-HRMS-Client: web` and receives the token only as an **HttpOnly, SameSite=Strict
+  cookie** (never in the body, never readable by JavaScript). Cookie-authenticated writes must carry
+  that header (CSRF guard). Postman/scripts keep getting a bearer token.
+* Idle timeout = `ACCESS_TOKEN_TTL_SECONDS` (15 min, sliding for the browser); hard cap
+  `SESSION_ABSOLUTE_TTL_HOURS` (12 h).
+* **Role changes need no re-login**: permissions are read from the database on every request; the
+  SPA also revalidates `/me` on navigation and shows `/session-expired` as soon as the API says the
+  session is gone.
+* Login, tenant selection and activation are rate-limited in-process (put a shared limiter at the
+  gateway when running several instances).
+
+### Organization onboarding (Milestone 2)
+
+New organizations are provisioned by the **platform CLI** (runs as `hrms_owner`; the API role can't create tenants):
+
+```bash
+npm run tenant:provision -- --name "Acme Corp" --admin-email ana@acme.test --admin-name "Ana Silva" --country IN
+# -> prints a one-time activation link: http://localhost:5173/activate?token=…
+npm run tenant:invite -- --slug acme-corp --email ana@acme.test --name "Ana Silva"   # re-issue a link
+```
+
+The CLI creates the tenant, its settings, a protected **Tenant Admin** system role and a hashed,
+expiring (72 h), single-use invitation. Activating sets the password (or, for an existing account,
+confirms the *current* password — an invitation can never overwrite one), joins the organization with
+only that bootstrap role, and signs in. The admin then completes the onboarding wizard. Logos are
+stored in Postgres (`tenant_assets`, ≤512 KB, PNG/JPEG/WebP verified by magic bytes) behind an
+`AssetStorage` interface so S3 can replace it.
 
 ## Database roles
 
@@ -50,6 +116,9 @@ curl -s localhost:4000/api/v1/leave-requests -H "authorization: Bearer $TOKEN" \
 
 ```
 db/migrations/000..005   roles, core, rbac, workflow, leave, RLS+grants
+db/migrations/006        auth_sessions (server-side sessions)
+db/migrations/007        organization profile/settings/logo/invitations/audit, organization.* permissions
+db/migrations/008        role re-activation audit action
 db/seed/dev_seed.sql     two tenants, Rahul -> Krishna -> Suresh scenario
 src/config               env, pg pool + withTenantTx (tenant-local set_config, retry on 40001/40P01)
 src/middleware           authenticate (fresh permissions per request), requirePermission, errors
@@ -57,15 +126,33 @@ src/modules/rbac         roles, grants, assignments (anti-escalation, lockout gu
 src/modules/workflow     engine, approver resolver, condition evaluator, definitions, delegations
 src/modules/leave        apply/resubmit/withdraw, day calculation, ledger-based balances, engine hooks
 src/modules/outbox       transactional outbox + SKIP LOCKED worker
-test/                    integration tests
+src/modules/auth         login, tenant selection/switch, sessions, logout, /me
+src/modules/organization profile, preferences, logo storage, onboarding status
+src/modules/onboarding   invitation activation (public) + provisioning (CLI/owner only)
+src/cli/tenant-cli.ts    platform provisioning CLI
+test/                    integration tests (service-level + HTTP-level portal tests)
+frontend/                React tenant portal (app/, layouts/, components/, modules/, services/)
 ```
 
 ## API (all under `/api/v1`)
 
 | Method | Path | Permission |
 |---|---|---|
-| POST | /auth/login | — |
-| GET | /me | authenticated |
+| POST | /auth/login | — (409 `TENANT_REQUIRED` + selection token for multi-org accounts) |
+| POST | /auth/select-tenant, /auth/switch-tenant, /auth/logout | selection token / authenticated / — |
+| GET, DELETE | /auth/sessions[/:sid] | own sessions |
+| GET | /me | authenticated (user, organization summary, memberships, permissions, session) |
+| GET | /onboarding/invitations/:token · POST /onboarding/activate | invitation token |
+| GET, PATCH | /organization | organization.view / organization.update |
+| GET, PATCH | /organization/settings | organization.settings.view / .update |
+| GET, POST, DELETE | /organization/logo | member / organization.update |
+| GET | /organization/options, /organization/onboarding-status | member |
+| POST | /organization/onboarding/complete | organization.update |
+| GET | /roles/:id, /roles/:id/members | roles.view |
+| POST | /roles/:id/clone, /roles/:id/activate | roles.manage |
+| GET | /users?search=&limit=&offset=, /users/:id | roles.view (tenant members only) |
+| GET | /users/:id/permissions?include=sources | self, or roles.* |
+| GET | /audit-events | roles.* (RBAC events) and/or organization.* (organization events) |
 | GET | /permissions, /roles, /roles/:id/permissions, /users/:id/roles | roles.view / manage / assign |
 | POST, PUT, DELETE | /roles, /roles/:id | roles.manage |
 | PUT | /roles/:id/permissions | roles.manage (+ must hold every granted code) |
@@ -111,4 +198,7 @@ test/                    integration tests
 * Two half-days on the same date are blocked by the overlap constraint.
 * Cancelling *approved* leave (`credit` ledger entry) and SLA escalation jobs are prepared in the
   schema but have no endpoint/worker yet.
-* Put rate limiting, helmet and a CORS allow-list in front of the API; consider RS256 + refresh tokens.
+* Put helmet and a shared rate limiter in front of the API in production; consider RS256 for tokens.
+* Milestone 3 (employee/user administration) is out of scope: the portal only assigns roles to
+  existing members. Inviting further users after the first administrator is done with `tenant:invite`.
+* No email delivery yet: activation links are printed by the CLI.

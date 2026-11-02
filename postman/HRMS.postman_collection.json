@@ -2221,6 +2221,1003 @@
           ]
         }
       ]
+    },
+    {
+      "name": "10 · Tenant portal (sessions, organization, RBAC management)",
+      "item": [
+        {
+          "name": "61. Multi-org login without tenant → 409 + selection token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"kiran@partners.test\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () {",
+                  "  if (pm.response.code !== 409) {",
+                  "    throw new Error(\"Expected 409, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"selection_token\", pm.response.json().error.details.selectionToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "62. Select XYZ Solutions (tenant 2)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/select-tenant",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"selectionToken\": \"{{selection_token}}\",\n  \"tenantId\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"token_kiran\", pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "63. Who am I — organization, memberships, session",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_kiran}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"tenant is XYZ\", function () { if (pm.response.json().tenant.slug !== 'xyz-solutions') throw new Error('wrong tenant'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "64. Switch organization to ABC",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_kiran}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/switch-tenant",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"token_kiran2\", pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "65. Old session is revoked → 401",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_kiran}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 401\", function () {",
+                  "  if (pm.response.code !== 401) {",
+                  "    throw new Error(\"Expected 401, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "66. My active sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_kiran2}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/sessions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "67. Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_kiran2}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/logout"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", function () {",
+                  "  if (pm.response.code !== 204) {",
+                  "    throw new Error(\"Expected 204, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "68. Token after logout → 401",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_kiran2}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 401\", function () {",
+                  "  if (pm.response.code !== 401) {",
+                  "    throw new Error(\"Expected 401, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "69. Organization profile (tenant admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"org_version\", pm.response.json().version);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "70. Update profile (optimistic version)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"industry\": \"Software\",\n  \"version\": \"{{org_version}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "71. Stale version → 409",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"industry\": \"Other\",\n  \"version\": {{org_version}}\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () {",
+                  "  if (pm.response.code !== 409) {",
+                  "    throw new Error(\"Expected 409, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "72. Invalid Indian postal code → 422",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": {\n    \"postalCode\": \"12AB\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () {",
+                  "  if (pm.response.code !== 422) {",
+                  "    throw new Error(\"Expected 422, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "73. Employee cannot read the profile → 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", function () {",
+                  "  if (pm.response.code !== 403) {",
+                  "    throw new Error(\"Expected 403, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "74. Regional preferences",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization/settings"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "75. Unknown timezone → 422",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization/settings",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timezone\": \"Mars/Olympus\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () {",
+                  "  if (pm.response.code !== 422) {",
+                  "    throw new Error(\"Expected 422, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "76. Save preferences",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization/settings",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currency\": \"INR\",\n  \"financialYearStartMonth\": 4,\n  \"dateFormat\": \"DD/MM/YYYY\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "77. Reference lists (timezones, currencies, countries…)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization/options"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "78. Logo that is not an image → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "image/png"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization/logo",
+            "body": {
+              "mode": "raw",
+              "raw": "<svg onload=alert(1)>"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () {",
+                  "  if (pm.response.code !== 422) {",
+                  "    throw new Error(\"Expected 422, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "79. Onboarding status (XYZ, not finished)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_meera}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization/onboarding-status"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "80. Complete onboarding too early → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_meera}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization/onboarding/complete"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () {",
+                  "  if (pm.response.code !== 422) {",
+                  "    throw new Error(\"Expected 422, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "81. Role detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/roles/{{role_hr_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "82. Role members",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/roles/{{role_hr_id}}/members"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "83. Duplicate a role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/roles/{{role_hr_id}}/clone",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HR Admin (Pune)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "  if (pm.response.code !== 201) {",
+                  "    throw new Error(\"Expected 201, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"role_clone_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "84. Deactivate the copy",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/roles/{{role_clone_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", function () {",
+                  "  if (pm.response.code !== 204) {",
+                  "    throw new Error(\"Expected 204, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "85. Re-activate the copy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/roles/{{role_clone_id}}/activate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "86. Other tenant cannot read this role → 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_meera}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/roles/{{role_hr_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () {",
+                  "  if (pm.response.code !== 404) {",
+                  "    throw new Error(\"Expected 404, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "87. Member directory search",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users?search=kri&limit=10"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "88. Other tenant's user → 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_meera}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users/{{user_rahul_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () {",
+                  "  if (pm.response.code !== 404) {",
+                  "    throw new Error(\"Expected 404, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "89. Effective permissions with source roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users/{{user_rahul_id}}/permissions?include=sources"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "90. Audit timeline",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_asha}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/audit-events?limit=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "91. Manager cannot read the audit log → 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/audit-events"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", function () {",
+                  "  if (pm.response.code !== 403) {",
+                  "    throw new Error(\"Expected 403, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -2318,6 +3315,26 @@
     },
     {
       "key": "draft_id",
+      "value": ""
+    },
+    {
+      "key": "selection_token",
+      "value": ""
+    },
+    {
+      "key": "token_kiran",
+      "value": ""
+    },
+    {
+      "key": "token_kiran2",
+      "value": ""
+    },
+    {
+      "key": "org_version",
+      "value": ""
+    },
+    {
+      "key": "role_clone_id",
       "value": ""
     }
   ]
