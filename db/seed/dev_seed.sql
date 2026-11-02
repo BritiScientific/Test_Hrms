@@ -9,18 +9,29 @@ DECLARE
   t1 bigint; t2 bigint;
   u_vikram bigint; u_suresh bigint; u_anita bigint; u_krishna bigint;
   u_rahul bigint; u_priya bigint; u_asha bigint; u_meera bigint; u_arjun bigint;
+  u_kiran bigint;
   e_vikram bigint; e_suresh bigint; e_anita bigint; e_krishna bigint;
   e_rahul bigint; e_priya bigint; e_asha bigint; e_meera bigint; e_arjun bigint;
   r_emp bigint; r_mgr bigint; r_hr bigint; r_admin bigint;
-  r2_emp bigint; r2_hr bigint;
+  r2_emp bigint; r2_hr bigint; r2_admin bigint;
   d_eng bigint; d_hr bigint;
   lt_annual bigint; lt_sick bigint; lt2_annual bigint;
   wf bigint; wf2 bigint;
   b bigint;
   emp record;
 BEGIN
-  INSERT INTO tenants (name, timezone) VALUES ('ABC Technologies', 'Asia/Kolkata') RETURNING id INTO t1;
-  INSERT INTO tenants (name, timezone) VALUES ('XYZ Solutions', 'Asia/Kolkata')    RETURNING id INTO t2;
+  -- ABC has completed onboarding; XYZ has not (its admin, Meera, lands in the wizard).
+  INSERT INTO tenants (name, slug, timezone, legal_name, industry, website, contact_email,
+                       contact_phone, contact_person, address_line1, city, state_province,
+                       postal_code, country_code, onboarding_completed_at)
+  VALUES ('ABC Technologies', 'abc-technologies', 'Asia/Kolkata', 'ABC Technologies Private Limited',
+          'Information Technology', 'https://abc.example', 'hello@abc.example', '+91 80 4000 1000',
+          'Asha', '12 MG Road', 'Bengaluru', 'Karnataka', '560001', 'IN', now())
+  RETURNING id INTO t1;
+  INSERT INTO tenants (name, slug, timezone) VALUES ('XYZ Solutions', 'xyz-solutions', 'Asia/Kolkata')
+  RETURNING id INTO t2;
+  INSERT INTO tenant_settings (tenant_id, confirmed_at) VALUES (t1, now());
+  INSERT INTO tenant_settings (tenant_id) VALUES (t2);
 
   INSERT INTO users (email, full_name, password_hash) VALUES ('vikram@abc.test',  'Vikram',  pw) RETURNING id INTO u_vikram;
   INSERT INTO users (email, full_name, password_hash) VALUES ('suresh@abc.test',  'Suresh',  pw) RETURNING id INTO u_suresh;
@@ -31,11 +42,14 @@ BEGIN
   INSERT INTO users (email, full_name, password_hash) VALUES ('asha@abc.test',    'Asha',    pw) RETURNING id INTO u_asha;
   INSERT INTO users (email, full_name, password_hash) VALUES ('meera@xyz.test',   'Meera',   pw) RETURNING id INTO u_meera;
   INSERT INTO users (email, full_name, password_hash) VALUES ('arjun@xyz.test',   'Arjun',   pw) RETURNING id INTO u_arjun;
+  -- Consultant who belongs to BOTH tenants: exercises organization selection.
+  INSERT INTO users (email, full_name, password_hash) VALUES ('kiran@partners.test', 'Kiran', pw) RETURNING id INTO u_kiran;
 
   INSERT INTO tenant_users (tenant_id, user_id)
   SELECT t1, x FROM unnest(ARRAY[u_vikram, u_suresh, u_anita, u_krishna, u_rahul, u_priya, u_asha]) x;
   INSERT INTO tenant_users (tenant_id, user_id)
   SELECT t2, x FROM unnest(ARRAY[u_meera, u_arjun]) x;
+  INSERT INTO tenant_users (tenant_id, user_id) VALUES (t1, u_kiran), (t2, u_kiran);
 
   INSERT INTO departments (tenant_id, name) VALUES (t1, 'Engineering') RETURNING id INTO d_eng;
   INSERT INTO departments (tenant_id, name) VALUES (t1, 'Human Resources') RETURNING id INTO d_hr;
@@ -80,6 +94,8 @@ BEGIN
     VALUES (t1, 'Tenant Admin', 'Full access', true) RETURNING id INTO r_admin;
   INSERT INTO roles (tenant_id, name) VALUES (t2, 'Employee') RETURNING id INTO r2_emp;
   INSERT INTO roles (tenant_id, name) VALUES (t2, 'HR Admin') RETURNING id INTO r2_hr;
+  INSERT INTO roles (tenant_id, name, description, is_system_role)
+    VALUES (t2, 'Tenant Admin', 'Full access', true) RETURNING id INTO r2_admin;
 
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
   SELECT t1, r_emp, id FROM permissions WHERE code IN ('leave.create', 'leave.view.own', 'leave.withdraw');
@@ -89,13 +105,16 @@ BEGIN
   SELECT t1, r_hr, id FROM permissions WHERE code IN (
     'leave.view.all', 'leave.approve', 'leave.balance.manage', 'leave.type.manage',
     'workflow.view', 'workflow.configure', 'workflow.delegate',
-    'roles.view', 'roles.manage', 'roles.assign', 'employee.view');
+    'roles.view', 'roles.manage', 'roles.assign', 'employee.view',
+    'organization.view', 'organization.settings.view');
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
   SELECT t1, r_admin, id FROM permissions;
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
   SELECT t2, r2_emp, id FROM permissions WHERE code IN ('leave.create', 'leave.view.own', 'leave.withdraw');
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
   SELECT t2, r2_hr, id FROM permissions WHERE code IN ('leave.view.all', 'leave.approve', 'workflow.configure', 'roles.manage', 'roles.assign', 'roles.view');
+  INSERT INTO role_permissions (tenant_id, role_id, permission_id)
+  SELECT t2, r2_admin, id FROM permissions;
 
   INSERT INTO user_roles (tenant_id, user_id, role_id, effective_from)
   SELECT t1, x, r_emp, '2024-01-01'
@@ -110,7 +129,11 @@ BEGIN
   INSERT INTO user_roles (tenant_id, user_id, role_id, effective_from) VALUES
     (t2, u_meera, r2_hr,  '2024-01-01'),
     (t2, u_meera, r2_emp, '2024-01-01'),
-    (t2, u_arjun, r2_emp, '2024-01-01');
+    (t2, u_arjun, r2_emp, '2024-01-01'),
+    (t2, u_meera, r2_admin, '2024-01-01'),
+    (t2, u_kiran, r2_emp, '2024-01-01');
+  INSERT INTO user_roles (tenant_id, user_id, role_id, effective_from) VALUES
+    (t1, u_kiran, r_emp, '2024-01-01');
 
   -- Leave types, holiday, balances
   INSERT INTO leave_types (tenant_id, code, name) VALUES (t1, 'annual', 'Annual Leave') RETURNING id INTO lt_annual;

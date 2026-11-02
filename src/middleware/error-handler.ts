@@ -13,6 +13,9 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   if (err?.type === 'entity.parse.failed') {
     return res.status(400).json({ error: { code: 'BAD_JSON', message: 'Malformed JSON body', requestId } });
   }
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large', requestId } });
+  }
 
   const appErr = err instanceof AppError ? err : fromPgError(err);
   if (appErr) {
