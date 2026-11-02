@@ -117,6 +117,7 @@ async function loadTenantRow(tx: Tx, lock = false) {
 export async function getTenantSummary(tx: Tx) {
   const row = await loadTenantRow(tx);
   const logo = await assetStorage.head(tx, 'logo');
+  const s = await getSettings(tx);
   return {
     id: row.id,
     slug: row.slug,
@@ -125,6 +126,8 @@ export async function getTenantSummary(tx: Tx) {
     logoUrl: logoUrl(logo),
     status: statusOf(row),
     onboardingCompleted: !!row.onboarding_completed_at,
+    // Display preferences every member's UI needs (not sensitive; editing needs organization.settings.*).
+    preferences: { timezone: s.timezone, locale: s.locale, dateFormat: s.dateFormat, currency: s.currency },
   };
 }
 

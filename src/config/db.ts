@@ -18,6 +18,13 @@ export const pool = new pg.Pool({
   application_name: 'hrms-api',
 });
 
+// An idle pooled connection can be killed by the server (restart, failover,
+// admin termination). Without a listener that 'error' event crashes the whole
+// process; the pool discards the broken client and opens a new one on demand.
+pool.on('error', (err) => {
+  console.error(JSON.stringify({ level: 'warn', msg: 'idle database connection lost', error: err.message }));
+});
+
 export type Tx = pg.PoolClient;
 
 const RETRYABLE = new Set(['40001', '40P01']); // serialization_failure, deadlock_detected

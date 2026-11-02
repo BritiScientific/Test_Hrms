@@ -41,7 +41,7 @@ const ProfileBody = z.object({
       z.string().regex(/^[A-Z]{2}$/).nullable(),
     ).optional(),
   }).strict().optional(),
-  version: z.number().int().positive().optional(),
+  version: z.coerce.number().int().positive().optional(),
 }).strict();
 
 const SettingsBody = z.object({
@@ -52,7 +52,7 @@ const SettingsBody = z.object({
   currency: z.string().regex(/^[A-Z]{3}$/).optional(),
   financialYearStartMonth: z.number().int().min(1).max(12).optional(),
   weekStartDay: z.number().int().min(0).max(6).optional(),
-  version: z.number().int().min(0).optional(),
+  version: z.coerce.number().int().min(0).optional(),
 }).strict();
 
 export const organizationRouter = Router();

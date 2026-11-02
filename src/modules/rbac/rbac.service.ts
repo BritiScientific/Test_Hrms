@@ -416,11 +416,21 @@ export async function listUsers(tx: Tx, q: { search?: string; limit?: number; of
 export async function getUser(tx: Tx, userId: number) {
   const r = await tx.query(
     `SELECT u.id, u.email, u.full_name, u.is_active, tu.status AS membership_status, tu.joined_at,
-            e.employee_code
+            e.employee_code,
+            COALESCE(jsonb_agg(jsonb_build_object(
+                'assignmentId', ur.id, 'roleId', r.id, 'roleName', r.name,
+                'isSystemRole', r.is_system_role, 'roleActive', r.is_active,
+                'effectiveFrom', ur.effective_from, 'effectiveTo', ur.effective_to,
+                'scheduled', ur.effective_from > tenant_today())
+              ORDER BY r.name) FILTER (WHERE ur.id IS NOT NULL), '[]') AS roles
        FROM tenant_users tu
        JOIN users u ON u.id = tu.user_id
        LEFT JOIN employees e ON e.tenant_id = tu.tenant_id AND e.user_id = tu.user_id
-      WHERE tu.user_id = $1`,
+       LEFT JOIN user_roles ur ON ur.tenant_id = tu.tenant_id AND ur.user_id = tu.user_id
+             AND ur.revoked_at IS NULL AND (ur.effective_to IS NULL OR ur.effective_to >= tenant_today())
+       LEFT JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id
+      WHERE tu.user_id = $1
+      GROUP BY u.id, tu.tenant_id, tu.user_id, e.employee_code`,
     [userId],
   );
   if (!r.rowCount) throw notFound('User');
