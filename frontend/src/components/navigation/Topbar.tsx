@@ -1,6 +1,6 @@
 import { Link, NavLink, useMatches, useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Building2, Check, ChevronRight, LogOut, Menu as MenuIcon, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck } from 'lucide-react';
+import { Building2, Check, ChevronRight, IdCard, LogOut, Menu as MenuIcon, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck } from 'lucide-react';
 import { useAuth, useMe } from '@/app/providers/AuthProvider';
 import { authApi } from '@/services/auth-api';
 import { cn } from '@/utils/cn';
@@ -161,6 +161,7 @@ function UserMenu() {
         </div>
       }
       items={[
+        ...(me.employee ? [{ key: 'profile', label: 'My profile', icon: <IdCard />, onSelect: () => navigate('/my-profile') }] : []),
         { key: 'security', label: 'Security & sessions', icon: <ShieldCheck />, onSelect: () => navigate('/settings/security') },
         {
           key: 'logout', label: 'Sign out', icon: <LogOut />, tone: 'danger',

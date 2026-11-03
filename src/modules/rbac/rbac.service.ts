@@ -337,7 +337,9 @@ export async function assignRole(
     `SELECT status FROM tenant_users WHERE user_id = $1`,
     [input.userId],
   );
-  if (!member.rowCount || member.rows[0].status !== 'active') throw notFound('User');
+  // 'invited' members (HR quick add) may hold roles up front: v_effective_permissions
+  // only counts ACTIVE memberships, so nothing is granted before activation.
+  if (!member.rowCount || !['active', 'invited'].includes(member.rows[0].status)) throw notFound('User');
 
   const rolePerms = await getRolePermissions(tx, input.roleId);
   const notHeld = rolePerms.filter((c) => !actor.permissions.has(c));
@@ -466,12 +468,13 @@ export async function getUserPermissionSources(tx: Tx, userId: number) {
 export async function listAuditEvents(
   tx: Tx,
   actor: AuthContext,
-  q: { limit?: number; offset?: number; category?: 'rbac' | 'organization'; targetType?: string; targetId?: number },
+  q: { limit?: number; offset?: number; category?: 'rbac' | 'organization' | 'employee'; targetType?: string; targetId?: number },
 ) {
   const canRbac = ['roles.view', 'roles.manage', 'roles.assign'].some((c) => actor.permissions.has(c));
   const canOrg = ['organization.view', 'organization.update', 'organization.settings.view', 'organization.settings.update']
     .some((c) => actor.permissions.has(c));
-  if (!canRbac && !canOrg) throw forbidden('MISSING_PERMISSION', 'Permission denied');
+  const canEmp = actor.permissions.has('employee.view');
+  if (!canRbac && !canOrg && !canEmp) throw forbidden('MISSING_PERMISSION', 'Permission denied');
   const limit = Math.min(Math.max(q.limit ?? 25, 1), 100);
   const offset = Math.max(q.offset ?? 0, 0);
   const r = await tx.query(
@@ -485,6 +488,10 @@ export async function listAuditEvents(
          SELECT 'organization', o.id, o.action, o.target_type, o.target_id, o.before_state,
                 o.after_state, o.request_id, o.at, o.actor_user_id, o.actor_label
            FROM organization_audit_log o WHERE $2
+         UNION ALL
+         SELECT 'employee', ea.id, ea.action, 'employee', ea.employee_id, ea.before_state,
+                ea.after_state, ea.request_id, ea.at, ea.actor_user_id, NULL
+           FROM employee_audit_log ea WHERE $8
        ) x
        LEFT JOIN users u ON u.id = x.actor_user_id
       WHERE ($3::text IS NULL OR x.category = $3)
@@ -492,7 +499,7 @@ export async function listAuditEvents(
         AND ($5::bigint IS NULL OR x.target_id = $5)
       ORDER BY x.at DESC, x.id DESC
       LIMIT $6 OFFSET $7`,
-    [canRbac, canOrg, q.category ?? null, q.targetType ?? null, q.targetId ?? null, limit + 1, offset],
+    [canRbac, canOrg, q.category ?? null, q.targetType ?? null, q.targetId ?? null, limit + 1, offset, canEmp],
   );
   return { items: r.rows.slice(0, limit), hasMore: r.rows.length > limit, limit, offset };
 }
@@ -542,7 +549,7 @@ function assertNotSystem(role: RoleRow) {
   if (role.is_system_role) throw forbidden('SYSTEM_ROLE', 'System roles cannot be modified');
 }
 
-async function assertNoLockout(tx: Tx) {
+export async function assertNoLockout(tx: Tx) {
   const r = await tx.query(
     `SELECT count(*)::int AS n FROM v_effective_permissions WHERE permission_code = $1`,
     [LOCKOUT_PERMISSION],

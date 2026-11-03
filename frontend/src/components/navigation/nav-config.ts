@@ -1,6 +1,6 @@
 import {
   BriefcaseBusiness, Building2, CalendarCheck, CalendarDays, ChartNoAxesCombined, ChartPie, GraduationCap, History,
-  KeyRound, LayoutDashboard, ShieldCheck, SlidersHorizontal, UserCog, Users, Wallet, type LucideIcon,
+  IdCard, KeyRound, LayoutDashboard, ShieldCheck, SlidersHorizontal, UserCog, Users, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { PERMS } from '@/app/providers/AuthProvider';
 
@@ -10,6 +10,8 @@ export interface NavItem {
   icon: LucideIcon;
   /** Shown only when the user holds at least one of these (UX only; the API enforces). */
   anyOf?: readonly string[];
+  /** Only for people who have an employee record (self-service). */
+  requiresEmployee?: boolean;
   end?: boolean;
 }
 
@@ -25,7 +27,14 @@ export interface UpcomingItem {
 
 export const MAIN_NAV: NavGroup[] = [
   {
-    items: [{ label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard }],
+    items: [
+      { label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
+      { label: 'My profile', to: '/my-profile', icon: IdCard, requiresEmployee: true },
+    ],
+  },
+  {
+    label: 'People',
+    items: [{ label: 'Employees', to: '/employees', icon: Users, anyOf: ['employee.view'] }],
   },
   {
     label: 'Administration',
@@ -41,7 +50,6 @@ export const MAIN_NAV: NavGroup[] = [
  * ("Coming later"), never as working links.
  */
 export const UPCOMING_MODULES: UpcomingItem[] = [
-  { label: 'Employee Management', icon: Users },
   { label: 'Attendance Management', icon: CalendarCheck },
   { label: 'Leave Management', icon: CalendarDays },
   { label: 'Payroll Management', icon: Wallet },
@@ -73,11 +81,11 @@ export const SETTINGS_NAV: NavGroup[] = [
   },
 ];
 
-export const SETTINGS_UPCOMING: UpcomingItem[] = [{ label: 'Employee & user administration', icon: Users }];
+export const SETTINGS_UPCOMING: UpcomingItem[] = [];
 
-export function visibleGroups(groups: NavGroup[], canAny: (...c: string[]) => boolean): NavGroup[] {
+export function visibleGroups(groups: NavGroup[], canAny: (...c: string[]) => boolean, hasEmployee = false): NavGroup[] {
   return groups
-    .map((g) => ({ ...g, items: g.items.filter((i) => !i.anyOf || canAny(...i.anyOf)) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => (!i.anyOf || canAny(...i.anyOf)) && (!i.requiresEmployee || hasEmployee)) }))
     .filter((g) => g.items.length > 0);
 }
 

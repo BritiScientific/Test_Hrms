@@ -19,7 +19,7 @@ export function Sidebar({ variant, collapsed = false, onNavigate, onBack }: {
 }) {
   const { canAny } = useAuth();
   const me = useMe();
-  const groups = visibleGroups(variant === 'main' ? MAIN_NAV : SETTINGS_NAV, canAny);
+  const groups = visibleGroups(variant === 'main' ? MAIN_NAV : SETTINGS_NAV, canAny, !!me.employee);
   const upcoming = variant === 'main' ? UPCOMING_MODULES : SETTINGS_UPCOMING;
 
   return (

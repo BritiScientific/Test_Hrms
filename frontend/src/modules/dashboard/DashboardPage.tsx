@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { ButtonLink } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { employeesApi } from '@/services/employees-api';
 import { rbacApi } from '@/services/rbac-api';
 import { auditActionLabel, groupByModule } from '@/utils/permissions';
 import { greeting, relativeTime } from '@/utils/format';
@@ -25,7 +26,11 @@ export default function DashboardPage() {
   const canAudit = canAny(...PERMS.audit);
 
   const tasks = useQuery({ queryKey: ['workflows', 'my-tasks'], queryFn: rbacApi.myTasks });
-  const members = useQuery({ queryKey: ['users', 'count'], queryFn: () => rbacApi.users({ limit: 1 }), enabled: canRoles });
+  const { can } = useAuth();
+  const canEmployees = can('employee.view');
+  const members = useQuery({ queryKey: ['users', 'count'], queryFn: () => rbacApi.users({ limit: 1 }), enabled: canRoles && !canEmployees });
+  const employees = useQuery({ queryKey: ['employees', 'count'], queryFn: () => employeesApi.list({ limit: 1 }), enabled: canEmployees });
+  const pending = useQuery({ queryKey: ['employees', 'pending-activation'], queryFn: () => employeesApi.list({ limit: 1, access: 'invited' }), enabled: canEmployees });
   const roles = useQuery({ queryKey: ['roles'], queryFn: rbacApi.roles, enabled: canRoles });
   const firstName = me.user.fullName.split(' ')[0];
 
@@ -37,11 +42,25 @@ export default function DashboardPage() {
       />
 
       {!me.tenant.onboardingCompleted && <SetupBanner />}
+      {me.employee && !me.employee.profileCompleted && (
+        <div className="mb-5 flex flex-col gap-3 rounded-card border border-amber-200 bg-warning-soft px-4 py-4 sm:flex-row sm:items-center sm:px-5">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-amber-950">Complete your profile</p>
+            <p className="text-sm text-amber-900/80">
+              {me.employee.profileProgress.total - me.employee.profileProgress.done} of your personal details are still missing.
+            </p>
+          </div>
+          <ButtonLink to="/my-profile" variant="outline" icon={<ArrowRight className="size-4" />}>Open my profile</ButtonLink>
+        </div>
+      )}
 
       <section aria-label="Key figures" className="grid grid-cols-1 gap-4 xs:grid-cols-2 xl:grid-cols-4 2xl:gap-5">
         <Kpi icon={<ClipboardCheck />} label="Pending approvals" hint="Waiting for your action"
           value={tasks.data?.length} loading={tasks.isPending} error={tasks.isError} />
-        {canRoles && (
+        {canEmployees ? (
+          <Kpi icon={<Users />} label="Employees" hint={pending.data?.total ? `${pending.data.total} awaiting activation` : 'Current staff'}
+            value={employees.data?.total} loading={employees.isPending} error={employees.isError} to="/employees" />
+        ) : canRoles && (
           <Kpi icon={<Users />} label="Organization members" hint="People with portal access"
             value={members.data?.total} loading={members.isPending} error={members.isError} to="/settings/access/assignments" />
         )}
@@ -156,7 +175,7 @@ function RecentActivity() {
         <ul className="divide-y divide-line">
           {q.data.items.map((e) => (
             <li key={`${e.category}-${e.id}`} className="flex items-start gap-3 px-4 py-3 sm:px-5">
-              <span className={`mt-1.5 size-2 shrink-0 rounded-full ${e.category === 'rbac' ? 'bg-violet-500' : 'bg-primary'}`} aria-hidden />
+              <span className={`mt-1.5 size-2 shrink-0 rounded-full ${e.category === 'rbac' ? 'bg-violet-500' : e.category === 'employee' ? 'bg-success' : 'bg-primary'}`} aria-hidden />
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-ink">
                   <span className="font-medium">{auditActionLabel(e.action)}</span>

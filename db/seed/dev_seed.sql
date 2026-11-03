@@ -73,6 +73,12 @@ BEGIN
   INSERT INTO employees (tenant_id, user_id, employee_code, full_name, date_of_joining)
     VALUES (t2, u_arjun,   'E502', 'Arjun',   '2022-01-01') RETURNING id INTO e_arjun;
 
+  UPDATE employees SET job_title = v.title FROM (VALUES
+      (e_vikram, 'Director of Engineering'), (e_suresh, 'HR Manager'), (e_anita, 'HR Executive'),
+      (e_krishna, 'Engineering Manager'), (e_rahul, 'Software Engineer'), (e_priya, 'Software Engineer'),
+      (e_asha, 'Chief People Officer')) AS v(id, title)
+   WHERE employees.tenant_id = t1 AND employees.id = v.id;
+
   UPDATE departments SET head_employee_id = e_vikram WHERE tenant_id = t1 AND id = d_eng;
   UPDATE departments SET head_employee_id = e_suresh WHERE tenant_id = t1 AND id = d_hr;
 
@@ -105,7 +111,7 @@ BEGIN
   SELECT t1, r_hr, id FROM permissions WHERE code IN (
     'leave.view.all', 'leave.approve', 'leave.balance.manage', 'leave.type.manage',
     'workflow.view', 'workflow.configure', 'workflow.delegate',
-    'roles.view', 'roles.manage', 'roles.assign', 'employee.view',
+    'roles.view', 'roles.manage', 'roles.assign', 'employee.view', 'employee.create', 'employee.update',
     'organization.view', 'organization.settings.view');
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
   SELECT t1, r_admin, id FROM permissions;

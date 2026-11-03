@@ -33,6 +33,7 @@ export interface Me {
   tenant: TenantSummary;
   memberships: Membership[];
   session: { id: string; expiresAt: string } | null;
+  employee: MeEmployee | null;
 }
 
 export interface LoginSuccess {
@@ -51,6 +52,8 @@ export interface InvitationInfo {
   fullName: string;
   organizationName: string;
   accountExists: boolean;
+  kind: 'admin' | 'employee';
+  jobTitle: string | null;
 }
 
 // ------------------------------------------------------------ organization --
@@ -208,7 +211,7 @@ export interface EffectivePermission extends Permission {
 }
 
 export interface AuditEvent {
-  category: 'rbac' | 'organization';
+  category: 'rbac' | 'organization' | 'employee';
   id: number;
   action: string;
   target_type: string;
@@ -237,4 +240,58 @@ export interface MyTask {
   step_name: string;
   requested_by_name: string;
   overdue: boolean;
+}
+
+// --------------------------------------------------------------- employees --
+
+export type AccessStatus = 'active' | 'invited' | 'invite_expired' | 'no_login' | 'suspended' | 'left';
+export type EmploymentType = 'full_time' | 'part_time' | 'contract' | 'intern';
+export type EmployeeStatus = 'active' | 'on_notice' | 'exited';
+
+export interface Employee {
+  id: number;
+  employeeCode: string;
+  fullName: string;
+  preferredName: string | null;
+  workEmail: string;
+  jobTitle: string | null;
+  employmentType: EmploymentType;
+  workLocation: string | null;
+  dateOfJoining: string | null;
+  status: EmployeeStatus;
+  department: { id: number; name: string } | null;
+  manager: { id: number; name: string; jobTitle: string | null } | null;
+  userId: number | null;
+  access: { status: AccessStatus; invitedAt: string | null; inviteExpiresAt: string | null };
+  dateOfBirth: string | null;
+  gender: string | null;
+  personalEmail: string | null;
+  mobilePhone: string | null;
+  address: Address;
+  emergencyContact: { name: string | null; relation: string | null; phone: string | null };
+  profile: { completed: boolean; completedAt: string | null; done: number; total: number; missing: { key: string; label: string }[] };
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface Department {
+  id: number;
+  name: string;
+  isActive: boolean;
+  headcount: number;
+}
+
+export interface QuickAddResult {
+  employee: Employee;
+  invitation: { url: string; expiresAt: string } | null;
+  linkedExistingMember: boolean;
+}
+
+export interface MeEmployee {
+  id: number;
+  employeeCode: string;
+  jobTitle: string | null;
+  profileCompleted: boolean;
+  profileProgress: { done: number; total: number };
 }

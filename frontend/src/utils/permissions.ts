@@ -65,6 +65,11 @@ export function auditActionLabel(action: string): string {
     'organization.onboarding.complete': 'Onboarding completed',
     'invitation.create': 'Administrator invited',
     'invitation.accept': 'Invitation accepted',
+    'employee.create': 'Employee added',
+    'employee.update': 'Employee details changed by HR',
+    'employee.self_update': 'Details updated by the employee',
+    'employee.invite': 'Activation link issued',
+    'employee.profile.complete': 'Profile completed',
   };
   return labels[action] ?? action;
 }
