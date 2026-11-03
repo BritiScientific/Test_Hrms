@@ -72,6 +72,30 @@ curl -s localhost:4000/api/v1/leave-requests -H "authorization: Bearer $TOKEN" \
   `max-w-workspace` (1600 px) content, slightly larger base font at ≥1920 px; tables turn into
   cards or scroll inside their own container on small screens.
 
+### Employee creation — quick add + self-service
+
+Two halves of one flow:
+
+* **Quick add (HR, `employee.create`)** — only **full name, work email and joining date** are required
+  (code, job title, department, manager, employment type and role are optional; the code is
+  suggested from the tenant's own pattern, e.g. `E901`). `POST /employees` does everything in
+  **one transaction**: creates a passwordless login (or links the existing account for that email),
+  adds an `invited` membership, the employee record, the reporting line, role assignments and a
+  one-time activation link. Any failure rolls the whole thing back. Invited members can hold roles but
+  have no effective permissions until they activate. Someone who is already an active member is just
+  linked to the new record and needs no link.
+* **Self-service (the employee)** — the activation link (7 days, single use, hashed) lets them set
+  a password; they land on **My profile** (`/my-profile`) and fill their own personal, home-address
+  and emergency-contact details (`PATCH /me/employee` accepts only those fields). The profile is
+  marked complete automatically once date of birth, mobile, city, country and an emergency contact
+  are present.
+* **HR can still fill anything** (`employee.update`, `PATCH /employees/:id`): job details and the
+  self-service fields, with optimistic concurrency. Setting status to `exited` ends portal access
+  at once (membership `left`, sessions revoked, open links revoked).
+* Every change is in the append-only `employee_audit_log` (shown under Security & audit and on the
+  employee page). There is no email delivery yet: HR sees the activation link once and shares it;
+  `POST /employees/:id/invitation` issues a new one and voids the old.
+
 ### Sessions (Milestone 1)
 
 * Login creates an `auth_sessions` row; the JWT carries its id (`sid`) and `authenticate()` checks it on
@@ -119,6 +143,7 @@ db/migrations/000..005   roles, core, rbac, workflow, leave, RLS+grants
 db/migrations/006        auth_sessions (server-side sessions)
 db/migrations/007        organization profile/settings/logo/invitations/audit, organization.* permissions
 db/migrations/008        role re-activation audit action
+db/migrations/009        employee creation: profile fields, 'invited' memberships, employee invitations, employee audit
 db/seed/dev_seed.sql     two tenants, Rahul -> Krishna -> Suresh scenario
 src/config               env, pg pool + withTenantTx (tenant-local set_config, retry on 40001/40P01)
 src/middleware           authenticate (fresh permissions per request), requirePermission, errors
@@ -129,6 +154,7 @@ src/modules/outbox       transactional outbox + SKIP LOCKED worker
 src/modules/auth         login, tenant selection/switch, sessions, logout, /me
 src/modules/organization profile, preferences, logo storage, onboarding status
 src/modules/onboarding   invitation activation (public) + provisioning (CLI/owner only)
+src/modules/employees    quick add (single transaction), HR edit, self-service profile, departments
 src/cli/tenant-cli.ts    platform provisioning CLI
 test/                    integration tests (service-level + HTTP-level portal tests)
 frontend/                React tenant portal (app/, layouts/, components/, modules/, services/)
@@ -152,7 +178,13 @@ frontend/                React tenant portal (app/, layouts/, components/, modul
 | POST | /roles/:id/clone, /roles/:id/activate | roles.manage |
 | GET | /users?search=&limit=&offset=, /users/:id | roles.view (tenant members only) |
 | GET | /users/:id/permissions?include=sources | self, or roles.* |
-| GET | /audit-events | roles.* (RBAC events) and/or organization.* (organization events) |
+| GET | /audit-events | roles.* (RBAC events), organization.* (organization events), employee.view (employee events) |
+| GET | /employees?search=&departmentId=&access=&status=, /employees/:id | employee.view (own record: any employee) |
+| GET | /employees/next-code | employee.create |
+| POST | /employees (quick add), /employees/:id/invitation | employee.create (+ roles.assign to set roles) |
+| PATCH | /employees/:id | employee.update (any field) |
+| GET, PATCH | /me/employee | own record; PATCH = self-service fields only |
+| GET, POST | /departments | employee.view / employee.create |
 | GET | /permissions, /roles, /roles/:id/permissions, /users/:id/roles | roles.view / manage / assign |
 | POST, PUT, DELETE | /roles, /roles/:id | roles.manage |
 | PUT | /roles/:id/permissions | roles.manage (+ must hold every granted code) |
@@ -199,6 +231,7 @@ frontend/                React tenant portal (app/, layouts/, components/, modul
 * Cancelling *approved* leave (`credit` ledger entry) and SLA escalation jobs are prepared in the
   schema but have no endpoint/worker yet.
 * Put helmet and a shared rate limiter in front of the API in production; consider RS256 for tokens.
-* Milestone 3 (employee/user administration) is out of scope: the portal only assigns roles to
-  existing members. Inviting further users after the first administrator is done with `tenant:invite`.
-* No email delivery yet: activation links are printed by the CLI.
+* No email delivery yet: admin activation links are printed by the CLI; employee links are shown to
+  HR once in the portal. The `employee.created` outbox event is the hook for a future mailer.
+* A work email cannot be changed after quick add (it is the sign-in identity); bulk import and
+  document uploads are not implemented.

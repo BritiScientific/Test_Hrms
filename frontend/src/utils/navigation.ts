@@ -12,6 +12,14 @@ export function landingPath(me: { tenant: { onboardingCompleted: boolean }; perm
   return safeReturnTo(returnTo);
 }
 
+/** Right after activating: admins finish organization setup, new employees complete their own profile. */
+export function postActivationPath(me: Parameters<typeof landingPath>[0] & { employee?: { profileCompleted: boolean } | null }) {
+  const first = landingPath(me);
+  if (first === '/onboarding') return first;
+  if (me.employee && !me.employee.profileCompleted) return '/my-profile?welcome=1';
+  return first;
+}
+
 /**
  * Remembers the last route visited in the main portal, so the Settings back
  * arrow returns there (falls back to /dashboard after a reload or deep link).

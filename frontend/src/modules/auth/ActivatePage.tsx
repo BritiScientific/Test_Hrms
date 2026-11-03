@@ -12,7 +12,7 @@ import { Field, Input } from '@/components/ui/Field';
 import { ApiError } from '@/services/api-client';
 import { authApi } from '@/services/auth-api';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import { landingPath } from '@/utils/navigation';
+import { postActivationPath } from '@/utils/navigation';
 import { cn } from '@/utils/cn';
 
 const RULES = [
@@ -56,8 +56,9 @@ export default function ActivatePage() {
   if (info.isPending) return <LoadingBlock rows={5} label="Checking your invitation" />;
 
   return info.data.accountExists
-    ? <ExistingAccountForm token={token} email={info.data.email} org={info.data.organizationName} />
-    : <NewAccountForm token={token} email={info.data.email} org={info.data.organizationName} defaultName={info.data.fullName} />;
+    ? <ExistingAccountForm token={token} email={info.data.email} org={info.data.organizationName} kind={info.data.kind} />
+    : <NewAccountForm token={token} email={info.data.email} org={info.data.organizationName} kind={info.data.kind}
+        jobTitle={info.data.jobTitle} defaultName={info.data.fullName} />;
 }
 
 function useActivate(token: string) {
@@ -69,7 +70,7 @@ function useActivate(token: string) {
     try {
       await authApi.activate(token, password, fullName);
       const me = await refresh();
-      if (me) navigate(landingPath(me), { replace: true });
+      if (me) navigate(postActivationPath(me), { replace: true });
     } catch (e) {
       if (e instanceof ApiError) {
         if (e.code === 'INVALID_CREDENTIALS') setError('That is not the current password of this account.');
@@ -81,7 +82,7 @@ function useActivate(token: string) {
   return { run, error };
 }
 
-function Heading({ org, email }: { org: string; email: string }) {
+function Heading({ org, email, kind, jobTitle }: { org: string; email: string; kind: 'admin' | 'employee'; jobTitle?: string | null }) {
   return (
     <>
       <span className="mb-4 inline-flex size-11 items-center justify-center rounded-xl bg-primary-soft text-primary">
@@ -89,14 +90,19 @@ function Heading({ org, email }: { org: string; email: string }) {
       </span>
       <h1 className="text-2xl font-semibold tracking-tight">Join {org}</h1>
       <p className="mt-1.5 text-sm text-muted">
-        You have been invited as the administrator for <span className="font-medium text-ink">{org}</span> using{' '}
-        <span className="font-medium text-ink">{email}</span>.
+        {kind === 'employee'
+          ? <>You have been added to <span className="font-medium text-ink">{org}</span>{jobTitle ? ` as ${jobTitle}` : ''}. Set a password for{' '}
+              <span className="font-medium text-ink">{email}</span>, then complete your profile.</>
+          : <>You have been invited as the administrator for <span className="font-medium text-ink">{org}</span> using{' '}
+              <span className="font-medium text-ink">{email}</span>.</>}
       </p>
     </>
   );
 }
 
-function NewAccountForm({ token, email, org, defaultName }: { token: string; email: string; org: string; defaultName: string }) {
+function NewAccountForm({ token, email, org, defaultName, kind, jobTitle }: {
+  token: string; email: string; org: string; defaultName: string; kind: 'admin' | 'employee'; jobTitle: string | null;
+}) {
   const { run, error } = useActivate(token);
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<z.infer<typeof newAccount>>({
     resolver: zodResolver(newAccount),
@@ -105,7 +111,7 @@ function NewAccountForm({ token, email, org, defaultName }: { token: string; ema
   const pw = watch('password') ?? '';
   return (
     <div>
-      <Heading org={org} email={email} />
+      <Heading org={org} email={email} kind={kind} jobTitle={jobTitle} />
       {error && <div className="mt-5"><InlineAlert>{error}</InlineAlert></div>}
       <form noValidate onSubmit={handleSubmit((v) => run(v.password, v.fullName))} className="mt-6 space-y-4">
         <Field label="Your full name" error={errors.fullName?.message} required>
@@ -141,14 +147,14 @@ function NewAccountForm({ token, email, org, defaultName }: { token: string; ema
   );
 }
 
-function ExistingAccountForm({ token, email, org }: { token: string; email: string; org: string }) {
+function ExistingAccountForm({ token, email, org, kind }: { token: string; email: string; org: string; kind: 'admin' | 'employee' }) {
   const { run, error } = useActivate(token);
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<z.infer<typeof existingAccount>>({
     resolver: zodResolver(existingAccount),
   });
   return (
     <div>
-      <Heading org={org} email={email} />
+      <Heading org={org} email={email} kind={kind} />
       <div className="mt-5">
         <InlineAlert tone="info">
           You already have an HRMS account. Confirm with your current password to add {org} to it. Your password will not change.

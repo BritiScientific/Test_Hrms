@@ -36,6 +36,10 @@ const SCREENS = [
   ['assignments', '/settings/access/assignments?user=5'],
   ['effective', '/settings/access/users/4/permissions'],
   ['security', '/settings/security'],
+  ['employees', '/employees'],
+  ['employee-quick-add', '/employees?new=1'],
+  ['employee-detail', '/employees/5'],
+  ['my-profile', '/my-profile'],
 ];
 const SHOT_WIDTHS = new Set([320, 768, 1440, 2560]);
 
@@ -148,6 +152,53 @@ console.log('Functional flows');
   const after = await page.evaluate(() => fetch('/api/v1/me').then((r) => r.status));
   check(after === 401, 'logout clears the server session', `status ${after}`);
   await ctx.close();
+}
+
+// ------------------------------------------- employee creation (A + D) --
+console.log('\nEmployee creation: HR quick add (A) + self-service (D)');
+{
+  const { ctx, page } = await newPage();
+  await login(page, 'suresh@abc.test');
+  await page.waitForURL(/\/dashboard/);
+  await page.getByRole('link', { name: 'Employees' }).first().click();
+  await page.getByRole('button', { name: 'Quick add' }).first().click();
+  const t0 = Date.now();
+  await page.getByLabel(/^Full name/).fill('Neha Kapoor');
+  await page.getByLabel(/^Work email/).fill('neha@abc.test');
+  // joining date defaults to today — three fields, one click
+  await page.getByRole('button', { name: 'Add employee' }).click();
+  await page.getByRole('heading', { name: 'Neha Kapoor added' }).waitFor();
+  check(true, `quick add needs only name + email (+ default joining date) — ${Date.now() - t0} ms of automation`);
+  const url = await page.getByLabel('Activation link').inputValue();
+  check(/\/activate\?token=/.test(url), 'HR receives a one-time activation link');
+  await page.getByRole('link', { name: 'Open profile' }).click();
+  await page.getByText('Profile completeness').waitFor();
+  check(await page.getByText('Invited', { exact: true }).first().isVisible(), 'new employee shows as Invited until activation');
+  await ctx.close();
+
+  // D — the employee activates and completes their own details.
+  const emp = await newPage({ width: 390, height: 844 });
+  await emp.page.goto(url);
+  await emp.page.getByLabel(/^Create a password/).fill('Lotus-Garden-2026');
+  await emp.page.getByLabel(/^Confirm password/).fill('Lotus-Garden-2026');
+  await emp.page.getByRole('button', { name: /Activate and continue/ }).click();
+  await emp.page.waitForURL(/\/my-profile\?welcome=1/);
+  check(true, 'after activating, the employee lands on “My profile” to finish their details');
+  await emp.page.getByLabel(/^Date of birth/).fill('1997-08-21');
+  await emp.page.getByLabel(/^Mobile phone/).fill('+91 98860 12345');
+  await emp.page.getByLabel(/^City/).fill('Bengaluru');
+  await emp.page.getByLabel(/^Country/).fill('India');
+  await emp.page.getByRole('option', { name: /^India/ }).click();
+  await emp.page.getByLabel(/^Name/).fill('Ravi Kapoor');
+  await emp.page.getByLabel(/^Phone/).fill('+91 98860 54321');
+  await emp.page.getByRole('button', { name: 'Save changes' }).click();
+  await emp.page.getByText('Your details were saved').waitFor();
+  const complete = await emp.page.getByText('Complete', { exact: true }).first().waitFor({ timeout: 5000 }).then(() => true, () => false);
+  check(complete, 'self-service details complete the profile');
+  const jobLocked = (await emp.page.getByLabel(/^Job title/).count()) === 0;
+  check(jobLocked, 'job details are read-only for the employee');
+  await emp.page.screenshot({ path: `${SHOTS}390-my-profile-complete.png`, fullPage: true });
+  await emp.ctx.close();
 }
 
 // ------------------------------------------------------------ responsive --

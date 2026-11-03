@@ -3218,6 +3218,537 @@
           ]
         }
       ]
+    },
+    {
+      "name": "11 · Employees (quick add + self-service)",
+      "item": [
+        {
+          "name": "92. Next employee code",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/employees/next-code"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "93. Quick add — only name, email, joining date",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/employees",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Divya Nair\",\n  \"workEmail\": \"divya@abc.test\",\n  \"dateOfJoining\": \"2026-11-03\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "  if (pm.response.code !== 201) {",
+                  "    throw new Error(\"Expected 201, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "var j = pm.response.json();",
+                  "pm.collectionVariables.set(\"emp_new_id\", j.employee.id);",
+                  "pm.collectionVariables.set(\"emp_invite_token\", j.invitation.url.split('token=')[1]);",
+                  "pm.test(\"invited, profile incomplete\", function () { if (j.employee.access.status !== 'invited' || j.employee.profile.completed) throw new Error('unexpected state'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "94. Quick add with manager, department and role (one transaction)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/employees",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Farhan Ali\",\n  \"workEmail\": \"farhan@abc.test\",\n  \"dateOfJoining\": \"2026-11-03\",\n  \"jobTitle\": \"QA Engineer\",\n  \"roleIds\": [\"{{role_hr_id}}\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "  if (pm.response.code !== 201) {",
+                  "    throw new Error(\"Expected 201, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "95. Duplicate person → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/employees",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Divya\",\n  \"workEmail\": \"divya@abc.test\",\n  \"dateOfJoining\": \"2026-11-03\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () {",
+                  "  if (pm.response.code !== 409) {",
+                  "    throw new Error(\"Expected 409, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "96. Manager cannot add employees → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/employees",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"X Y\",\n  \"workEmail\": \"xy@abc.test\",\n  \"dateOfJoining\": \"2026-11-03\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", function () {",
+                  "  if (pm.response.code !== 403) {",
+                  "    throw new Error(\"Expected 403, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "97. Employee directory",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/employees?search=divya"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "98. Invitation preview (employee)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/onboarding/invitations/{{emp_invite_token}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"kind is employee\", function () { if (pm.response.json().kind !== 'employee') throw new Error('kind'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "99. Employee activates",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/onboarding/activate",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{emp_invite_token}}\",\n  \"password\": \"Kochi-Secure-2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"token_divya\", pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "100. Self-service: HR-owned field refused → 422",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_divya}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/employee",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobTitle\": \"CEO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () {",
+                  "  if (pm.response.code !== 422) {",
+                  "    throw new Error(\"Expected 422, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "101. Self-service: complete own details",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_divya}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/employee",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dateOfBirth\": \"1996-04-12\",\n  \"mobilePhone\": \"+91 98450 11111\",\n  \"address\": {\n    \"city\": \"Kochi\",\n    \"countryCode\": \"IN\",\n    \"postalCode\": \"682001\"\n  },\n  \"emergencyContact\": {\n    \"name\": \"Arun Nair\",\n    \"relation\": \"Brother\",\n    \"phone\": \"+91 98450 22222\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"profile complete\", function () { if (!pm.response.json().profile.completed) throw new Error('incomplete'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "102. HR fills any field directly",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/employees/{{emp_new_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobTitle\": \"Data Analyst\",\n  \"workLocation\": \"Kochi\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "103. Other tenant cannot read the employee → 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_meera}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/employees/{{emp_new_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () {",
+                  "  if (pm.response.code !== 404) {",
+                  "    throw new Error(\"Expected 404, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "104. Active employee needs no new link → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/employees/{{emp_new_id}}/invitation"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () {",
+                  "  if (pm.response.code !== 409) {",
+                  "    throw new Error(\"Expected 409, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "105. Departments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/departments"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "106. Employee audit trail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/audit-events?category=employee&targetType=employee&targetId={{emp_new_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -3335,6 +3866,18 @@
     },
     {
       "key": "role_clone_id",
+      "value": ""
+    },
+    {
+      "key": "emp_new_id",
+      "value": ""
+    },
+    {
+      "key": "emp_invite_token",
+      "value": ""
+    },
+    {
+      "key": "token_divya",
       "value": ""
     }
   ]

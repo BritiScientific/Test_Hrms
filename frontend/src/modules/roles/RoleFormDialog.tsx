@@ -62,7 +62,7 @@ export function RoleFormDialog({ open, onClose, title, description, initial, sub
         {error && <InlineAlert>{error}</InlineAlert>}
         <Field label="Role name" error={errors.name?.message} required hint="Must be unique in your organization">
           {({ id, describedBy, invalid }) => (
-            <Input id={id} autoFocus aria-describedby={describedBy} aria-invalid={invalid} {...register('name')} />
+            <Input id={id} data-autofocus aria-describedby={describedBy} aria-invalid={invalid} {...register('name')} />
           )}
         </Field>
         <Field label="Description" error={errors.description?.message} hint="Explain who this role is for and what it allows">

@@ -91,7 +91,7 @@ const PAGE = 25;
 
 function AuditLogCard() {
   const me = useMe();
-  const [category, setCategory] = useState<'' | 'rbac' | 'organization'>('');
+  const [category, setCategory] = useState<'' | 'rbac' | 'organization' | 'employee'>('');
   const q = useInfiniteQuery({
     queryKey: ['audit', 'log', category],
     queryFn: ({ pageParam }) => rbacApi.auditEvents({ limit: PAGE, offset: pageParam, category: category || undefined }),
@@ -110,6 +110,7 @@ function AuditLogCard() {
             <option value="">All events</option>
             <option value="rbac">Roles & access</option>
             <option value="organization">Organization</option>
+            <option value="employee">Employees</option>
           </Select>
         }
       />
@@ -123,7 +124,9 @@ function AuditLogCard() {
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
                   {auditActionLabel(e.action)}
-                  <Badge tone={e.category === 'rbac' ? 'violet' : 'primary'}>{e.category === 'rbac' ? 'Access' : 'Organization'}</Badge>
+                  <Badge tone={e.category === 'rbac' ? 'violet' : e.category === 'employee' ? 'success' : 'primary'}>
+                    {e.category === 'rbac' ? 'Access' : e.category === 'employee' ? 'Employees' : 'Organization'}
+                  </Badge>
                 </p>
                 <time className="text-xs text-muted tabular" dateTime={e.at}>{formatDateTime(e.at, me.tenant.preferences)}</time>
               </div>

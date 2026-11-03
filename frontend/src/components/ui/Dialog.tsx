@@ -24,7 +24,11 @@ export function Dialog({ open, onClose, title, description, children, footer, si
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-    if (open && !d.open) d.showModal?.();
+    if (open && !d.open) {
+      d.showModal?.();
+      // showModal focuses the first control (the close button); prefer the field marked data-autofocus.
+      requestAnimationFrame(() => d.querySelector<HTMLElement>('[data-autofocus]')?.focus());
+    }
     if (!open && d.open) d.close?.();
   }, [open]);
 

@@ -38,6 +38,10 @@ function duplicateMessage(constraint?: string): string {
   switch (constraint) {
     case 'uq_roles_name':
       return 'A role with this name already exists';
+    case 'departments_tenant_id_name_key':
+      return 'A department with this name already exists';
+    case 'employees_tenant_id_employee_code_key':
+      return 'This employee code is already used';
     case 'uq_tenants_slug':
       return 'An organization with this slug already exists';
     default:

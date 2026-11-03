@@ -49,6 +49,8 @@ onboardingRouter.get('/onboarding/invitations/:token', publicTokenLimiter, handl
     email: inv.email,
     fullName: inv.full_name,
     organizationName: inv.organization_name,
+    kind: inv.kind ?? 'admin',
+    jobTitle: inv.job_title ?? null,
     // Existing account: the user confirms with their CURRENT password instead of creating one.
     accountExists: !!inv.user_exists && !!inv.user_has_password,
   });

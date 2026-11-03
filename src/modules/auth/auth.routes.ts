@@ -5,6 +5,7 @@ import { authenticate } from '../../middleware/authenticate';
 import { handle, tenantHandler } from '../../middleware/http';
 import { loginLimiter, publicTokenLimiter } from '../../middleware/rate-limit';
 import { AppError, notFound } from '../../shared/errors';
+import { getEmployee } from '../employees/employee.service';
 import { getTenantSummary } from '../organization/organization.service';
 import { getUserEffectivePermissions } from '../rbac/rbac.service';
 import { verifyDummy, verifyPassword } from './password';
@@ -116,6 +117,7 @@ authRouter.get('/me', authenticate, tenantHandler(async (tx, auth) => {
   const u = await tx.query(`SELECT id, email, full_name FROM users WHERE id = $1`, [auth.userId]);
   const permissions = await getUserEffectivePermissions(tx, auth.userId);
   const tenant = await getTenantSummary(tx);
+  const employee = auth.employeeId ? await getEmployee(tx, auth.employeeId) : null;
   return {
     userId: auth.userId,
     tenantId: auth.tenantId,
@@ -125,6 +127,10 @@ authRouter.get('/me', authenticate, tenantHandler(async (tx, auth) => {
     tenant,
     memberships: await listMemberships(auth.userId),
     session: auth.sessionId ? { id: auth.sessionId, expiresAt: auth.sessionExpiresAt } : null,
+    employee: employee && {
+      id: employee.id, employeeCode: employee.employeeCode, jobTitle: employee.jobTitle,
+      profileCompleted: employee.profile.completed, profileProgress: { done: employee.profile.done, total: employee.profile.total },
+    },
   };
 }));
 

@@ -67,6 +67,16 @@ export const routes: RouteObject[] = [
             element: <TenantLayout />,
             children: [
               { path: '/dashboard', handle: { crumb: 'Dashboard' }, lazy: page(() => import('@/modules/dashboard/DashboardPage')) },
+              { path: '/my-profile', handle: { crumb: 'My profile' }, lazy: page(() => import('@/modules/employees/MyProfilePage')) },
+              {
+                path: '/employees',
+                handle: { crumb: 'Employees', crumbTo: '/employees' },
+                children: [
+                  { index: true, lazy: guarded(['employee.view'], () => import('@/modules/employees/EmployeesListPage')) },
+                  // Own record is allowed by the API without employee.view; others need it.
+                  { path: ':employeeId', handle: { crumb: 'Profile' }, lazy: page(() => import('@/modules/employees/EmployeeDetailPage')) },
+                ],
+              },
             ],
           },
           {
