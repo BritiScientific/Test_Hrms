@@ -3749,6 +3749,95 @@
           ]
         }
       ]
+    },
+    {
+      "name": "12 · Organization chart",
+      "item": [
+        {
+          "name": "107. Hierarchy, unassigned employees and filter options",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization/chart"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "108. Filter by status and search",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization/chart?status=active&search=engineer"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "109. Employee without organization.chart.view → 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/organization/chart"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", function () {",
+                  "  if (pm.response.code !== 403) {",
+                  "    throw new Error(\"Expected 403, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [

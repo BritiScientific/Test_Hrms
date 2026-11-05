@@ -13,3 +13,6 @@ if (typeof HTMLDialogElement !== 'undefined') {
     this.removeAttribute('open');
   };
 }
+
+// jsdom has no layout, so no scrolling either.
+Element.prototype.scrollIntoView ??= function scrollIntoView() {};

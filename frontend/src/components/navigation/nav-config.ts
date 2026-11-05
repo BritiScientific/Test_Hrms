@@ -1,6 +1,6 @@
 import {
   BriefcaseBusiness, Building2, CalendarCheck, CalendarDays, ChartNoAxesCombined, ChartPie, GraduationCap, History,
-  IdCard, KeyRound, LayoutDashboard, ShieldCheck, SlidersHorizontal, UserCog, Users, Wallet, type LucideIcon,
+  IdCard, KeyRound, LayoutDashboard, Network, ShieldCheck, SlidersHorizontal, UserCog, Users, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { PERMS } from '@/app/providers/AuthProvider';
 
@@ -65,6 +65,7 @@ export const SETTINGS_NAV: NavGroup[] = [
     items: [
       { label: 'Organization profile', to: '/settings/organization/profile', icon: Building2, anyOf: PERMS.orgProfile },
       { label: 'Organization settings', to: '/settings/organization/preferences', icon: SlidersHorizontal, anyOf: PERMS.orgSettings },
+      { label: 'Organization Chart', to: '/settings/organization-chart', icon: Network, anyOf: PERMS.orgChart },
     ],
   },
   {

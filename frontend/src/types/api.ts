@@ -282,6 +282,55 @@ export interface Department {
   headcount: number;
 }
 
+// ------------------------------------------------------- organization chart --
+
+export type OrgChartStatus = 'current' | 'active' | 'on_notice' | 'exited' | 'all';
+export type OrgChartIssue = 'cycle' | 'manager_exited' | 'manager_missing';
+
+export interface OrganizationChartQuery {
+  departmentId?: number;
+  managerId?: number;
+  search?: string;
+  status?: OrgChartStatus;
+}
+
+export interface OrgChartNode {
+  id: number;
+  employeeCode: string;
+  fullName: string;
+  jobTitle: string | null;
+  department: { id: number; name: string } | null;
+  status: EmployeeStatus;
+  employmentType: EmploymentType;
+  workLocation: string | null;
+  dateOfJoining: string | null;
+  photoUrl: string | null;
+  manager: { id: number; name: string; jobTitle: string | null; status: EmployeeStatus | null } | null;
+  upcomingManager: { id: number; name: string; effectiveFrom: string } | null;
+  directReportCount: number;
+  totalReportCount: number;
+  /** False = shown only to connect a matching employee to their manager. */
+  matched: boolean;
+  issue: OrgChartIssue | null;
+  children: OrgChartNode[];
+}
+
+export interface OrganizationChart {
+  asOf: string;
+  summary: {
+    employees: number;
+    roots: number;
+    unassigned: number;
+    issues: { cycle: number; managerExited: number; managerMissing: number };
+  };
+  roots: OrgChartNode[];
+  unassigned: OrgChartNode[];
+  filterOptions: {
+    departments: { id: number; name: string }[];
+    managers: { id: number; name: string; jobTitle: string | null; directReportCount: number }[];
+  };
+}
+
 export interface QuickAddResult {
   employee: Employee;
   invitation: { url: string; expiresAt: string } | null;

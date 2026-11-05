@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Field';
+import { useDebounced } from '@/hooks/useDebounced';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { employeesApi } from '@/services/employees-api';
 import { formatDate } from '@/utils/format';
@@ -15,15 +16,6 @@ import { QuickAddDialog } from './QuickAddDialog';
 import { AccessBadge, ProfileBadge, empKeys, useDepartments } from './shared';
 
 const PAGE = 25;
-
-function useDebounced<T>(value: T, ms = 250) {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return v;
-}
 
 export default function EmployeesListPage() {
   usePageTitle('Employees');

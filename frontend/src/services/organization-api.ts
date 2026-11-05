@@ -1,9 +1,11 @@
 import type {
-  OnboardingStatus, OrganizationOptions, OrganizationProfile, OrganizationSettings, ProfilePatch,
+  OnboardingStatus, OrganizationChart, OrganizationChartQuery, OrganizationOptions, OrganizationProfile,
+  OrganizationSettings, ProfilePatch,
 } from '@/types/api';
-import { api, apiRequest } from './api-client';
+import { api, apiRequest, qs } from './api-client';
 
 export const organizationApi = {
+  chart: (q: OrganizationChartQuery) => api.get<OrganizationChart>(`/organization/chart${qs({ ...q })}`),
   profile: () => api.get<OrganizationProfile>('/organization'),
   updateProfile: (patch: ProfilePatch & { version?: number }) => api.patch<OrganizationProfile>('/organization', patch),
   settings: () => api.get<OrganizationSettings>('/organization/settings'),

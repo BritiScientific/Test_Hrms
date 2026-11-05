@@ -29,6 +29,7 @@ const SCREENS = [
   ['dashboard', '/dashboard'],
   ['org-profile', '/settings/organization/profile'],
   ['org-settings', '/settings/organization/preferences'],
+  ['org-chart', '/settings/organization-chart'],
   ['roles', '/settings/access/roles'],
   ['role-detail', '/settings/access/roles/3'],
   ['role-permissions', '/settings/access/roles/3/permissions'],

@@ -62,7 +62,7 @@ curl -s localhost:4000/api/v1/leave-requests -H "authorization: Bearer $TOKEN" \
 | Sign-in | `/login`, `/select-organization` (only for multi-organization accounts), `/activate?token=…`, `/session-expired`, `/unauthorized` |
 | Portal | `/dashboard` (only API-backed figures: pending approvals, members, roles, your permissions, setup progress, recent audit) |
 | Onboarding | `/onboarding?step=details\|address\|preferences\|branding\|review` |
-| Settings (own sidebar + back arrow) | `/settings/organization/profile`, `/settings/organization/preferences`, `/settings/access/roles[/new\|/:id\|/:id/permissions]`, `/settings/access/permissions`, `/settings/access/assignments`, `/settings/access/users/:id/permissions`, `/settings/security` |
+| Settings (own sidebar + back arrow) | `/settings/organization/profile`, `/settings/organization/preferences`, `/settings/organization-chart`, `/settings/access/roles[/new\|/:id\|/:id/permissions]`, `/settings/access/permissions`, `/settings/access/assignments`, `/settings/access/users/:id/permissions`, `/settings/security` |
 
 * Future modules (employees, attendance, leave, payroll, recruitment, performance, training,
   reports) appear only under a collapsed **Coming later** group, disabled and labelled “Soon”.
@@ -95,6 +95,25 @@ Two halves of one flow:
 * Every change is in the append-only `employee_audit_log` (shown under Security & audit and on the
   employee page). There is no email delivery yet: HR sees the activation link once and shares it;
   `POST /employees/:id/invitation` issues a new one and voids the old.
+
+### Organization chart
+
+`/settings/organization-chart` draws the hierarchy from `employee_reporting`, so changing a reporting
+manager on an employee record is all it takes to change the chart. Nothing is stored for the chart itself.
+
+* **What counts:** only the line in force today (tenant-local date). Ended lines are ignored; a line that
+  starts later is shown as "reports to X from <date>" but doesn't place the person yet.
+* **Roots and unassigned:** no manager and a team = root (there can be several); no manager and no team =
+  the separate *No reporting manager* list.
+* **Exited employees** are hidden by default. Anyone still reporting to one is flagged "Manager has left"
+  rather than dropped. `status=exited|all` reveals them.
+* **Filters** keep the structure honest: the managers between a match and the top stay on the chart as
+  dimmed context (`matched: false`), and report counts are always the real ones.
+* **Cycles** are rejected on write (`prevent_reporting_cycle`, whole period of the line). If one exists anyway,
+  the chart cuts it at the lowest employee id, shows everyone once and flags it for HR.
+* **Access:** `organization.chart.view`, separate from `employee.view` so a role can see the chart without
+  personal details. The response carries directory fields only: no date of birth, personal email, phone,
+  address, emergency contact or login email.
 
 ### Sessions (Milestone 1)
 
@@ -144,6 +163,7 @@ db/migrations/006        auth_sessions (server-side sessions)
 db/migrations/007        organization profile/settings/logo/invitations/audit, organization.* permissions
 db/migrations/008        role re-activation audit action
 db/migrations/009        employee creation: profile fields, 'invited' memberships, employee invitations, employee audit
+db/migrations/010        organization.chart.view permission; reporting-cycle check covers the line's whole period
 db/seed/dev_seed.sql     two tenants, Rahul -> Krishna -> Suresh scenario
 src/config               env, pg pool + withTenantTx (tenant-local set_config, retry on 40001/40P01)
 src/middleware           authenticate (fresh permissions per request), requirePermission, errors
@@ -171,6 +191,7 @@ frontend/                React tenant portal (app/, layouts/, components/, modul
 | GET | /onboarding/invitations/:token · POST /onboarding/activate | invitation token |
 | GET, PATCH | /organization | organization.view / organization.update |
 | GET, PATCH | /organization/settings | organization.settings.view / .update |
+| GET | /organization/chart?departmentId=&managerId=&search=&status= | organization.chart.view |
 | GET, POST, DELETE | /organization/logo | member / organization.update |
 | GET | /organization/options, /organization/onboarding-status | member |
 | POST | /organization/onboarding/complete | organization.update |

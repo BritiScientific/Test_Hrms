@@ -5,6 +5,7 @@ import { tenantHandler } from '../../middleware/http';
 import { requirePermission } from '../../middleware/require-permission';
 import { withTenantTx } from '../../config/db';
 import { MAX_LOGO_BYTES } from './asset-storage';
+import { CHART_STATUSES, getOrganizationChart } from './organization-chart.service';
 import { COUNTRIES, CURRENCIES, DATE_FORMATS, LOCALES, TIMEZONES } from './organization.reference';
 import * as org from './organization.service';
 
@@ -55,6 +56,13 @@ const SettingsBody = z.object({
   version: z.coerce.number().int().min(0).optional(),
 }).strict();
 
+const ChartQuery = z.object({
+  departmentId: z.coerce.number().int().positive().optional(),
+  managerId: z.coerce.number().int().positive().optional(),
+  search: z.string().trim().max(100).optional(),
+  status: z.enum(CHART_STATUSES).optional(),
+});
+
 export const organizationRouter = Router();
 organizationRouter.use('/organization', authenticate);
 
@@ -72,6 +80,10 @@ organizationRouter.get('/organization/settings', canViewSettings, tenantHandler(
 
 organizationRouter.patch('/organization/settings', canUpdateSettings,
   tenantHandler((tx, auth, req) => org.updateSettings(tx, auth, SettingsBody.parse(req.body))));
+
+/** Reporting hierarchy built from the current effective reporting lines. */
+organizationRouter.get('/organization/chart', requirePermission('organization.chart.view'),
+  tenantHandler((tx, _auth, req) => getOrganizationChart(tx, ChartQuery.parse(req.query))));
 
 /** Reference lists for the settings forms (any member). */
 organizationRouter.get('/organization/options', tenantHandler(async () => ({

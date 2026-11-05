@@ -94,6 +94,7 @@ export const routes: RouteObject[] = [
                   { path: 'preferences', handle: { crumb: 'Settings' }, lazy: guarded(PERMS.orgSettings, () => import('@/modules/organization/OrganizationPreferencesPage')) },
                 ],
               },
+              { path: 'organization-chart', handle: { crumb: 'Organization Chart' }, lazy: guarded(PERMS.orgChart, () => import('@/modules/organization/OrganizationChartPage')) },
               {
                 path: 'access',
                 handle: { crumb: 'Access control', crumbTo: '/settings/access/roles' },

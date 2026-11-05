@@ -122,6 +122,7 @@ export const PERMS = {
   rolesView: ['roles.view', 'roles.manage', 'roles.assign'],
   orgProfile: ['organization.view', 'organization.update'],
   orgSettings: ['organization.settings.view', 'organization.settings.update'],
+  orgChart: ['organization.chart.view'],
   audit: ['roles.view', 'roles.manage', 'roles.assign', 'organization.view', 'organization.update',
     'organization.settings.view', 'organization.settings.update'],
 } as const;

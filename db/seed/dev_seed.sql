@@ -112,7 +112,7 @@ BEGIN
     'leave.view.all', 'leave.approve', 'leave.balance.manage', 'leave.type.manage',
     'workflow.view', 'workflow.configure', 'workflow.delegate',
     'roles.view', 'roles.manage', 'roles.assign', 'employee.view', 'employee.create', 'employee.update',
-    'organization.view', 'organization.settings.view');
+    'organization.view', 'organization.settings.view', 'organization.chart.view');
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
   SELECT t1, r_admin, id FROM permissions;
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
