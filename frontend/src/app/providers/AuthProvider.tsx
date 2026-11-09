@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, onSessionLost } from '@/services/api-client';
 import { authApi } from '@/services/auth-api';
+import { ALL_WORK_SCHEDULE_PERMS } from '@/modules/work-schedule/tabs';
 import type { Me } from '@/types/api';
 
 /**
@@ -124,7 +125,7 @@ export const PERMS = {
   orgSettings: ['organization.settings.view', 'organization.settings.update'],
   orgChart: ['organization.chart.view'],
   audit: ['roles.view', 'roles.manage', 'roles.assign', 'organization.view', 'organization.update',
-    'organization.settings.view', 'organization.settings.update'],
+    'organization.settings.view', 'organization.settings.update', ...ALL_WORK_SCHEDULE_PERMS],
   leaveMyDashboard: ['leave.dashboard.view_self'],
   leaveApply: ['leave.request.create_self'],
   leaveMyRequests: ['leave.request.view_self', 'leave.balance.view_self'],
@@ -138,4 +139,6 @@ export const PERMS = {
   leaveConfig: ['leave.configuration.view', 'leave.configuration.manage'],
   leaveWorkflows: ['workflow.view', 'workflow.configure'],
   leaveAssignments: ['leave.configuration.view', 'leave.configuration.manage', 'leave.policy.assign'],
+  /** Any work schedule permission opens Settings > Work Schedule; each tab checks its own. */
+  workSchedule: ALL_WORK_SCHEDULE_PERMS,
 } as const;

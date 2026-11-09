@@ -19,7 +19,7 @@ import { auditActionLabel } from '@/utils/permissions';
 import { AuditDiff } from '../security/AuditDiff';
 import { EmployeeForm } from './EmployeeForm';
 import { InviteLink } from './InviteLink';
-import { AccessBadge, ProfileChecklist, STATUS_LABEL, empKeys, employmentLabel, useInvalidateEmployees } from './shared';
+import { AccessBadge, ProfileChecklist, STATUS_LABEL, empKeys, employeeTypeLabel, useInvalidateEmployees } from './shared';
 
 export default function EmployeeDetailPage() {
   const id = Number(useParams().employeeId);
@@ -97,7 +97,13 @@ export default function EmployeeDetailPage() {
               {e.access.inviteExpiresAt && (
                 <div><dt className="text-xs text-muted">Activation link expires</dt><dd>{formatDateTime(e.access.inviteExpiresAt, me.tenant.preferences)}</dd></div>
               )}
-              <div><dt className="text-xs text-muted">Employment</dt><dd>{STATUS_LABEL[e.status]} · {employmentLabel(e.employmentType)}</dd></div>
+              <div>
+                <dt className="text-xs text-muted">Employment</dt>
+                <dd>
+                  {STATUS_LABEL[e.status]} · {employeeTypeLabel(e)}
+                  {e.employeeTypeActive === false && <Badge tone="warning" className="ml-2">Inactive type</Badge>}
+                </dd>
+              </div>
               <div><dt className="text-xs text-muted">Joined</dt><dd>{formatDate(e.dateOfJoining, me.tenant.preferences)}</dd></div>
               <div><dt className="text-xs text-muted">Reports to</dt><dd>{e.manager ? <Link className="text-primary hover:underline" to={`/employees/${e.manager.id}`}>{e.manager.name}</Link> : '—'}</dd></div>
             </dl>

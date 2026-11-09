@@ -468,13 +468,18 @@ export async function getUserPermissionSources(tx: Tx, userId: number) {
 export async function listAuditEvents(
   tx: Tx,
   actor: AuthContext,
-  q: { limit?: number; offset?: number; category?: 'rbac' | 'organization' | 'employee'; targetType?: string; targetId?: number },
+  q: {
+    limit?: number; offset?: number; category?: 'rbac' | 'organization' | 'employee' | 'work_schedule';
+    targetType?: string; targetId?: number;
+  },
 ) {
   const canRbac = ['roles.view', 'roles.manage', 'roles.assign'].some((c) => actor.permissions.has(c));
   const canOrg = ['organization.view', 'organization.update', 'organization.settings.view', 'organization.settings.update']
     .some((c) => actor.permissions.has(c));
   const canEmp = actor.permissions.has('employee.view');
-  if (!canRbac && !canOrg && !canEmp) throw forbidden('MISSING_PERMISSION', 'Permission denied');
+  // Any work schedule permission shows its configuration history.
+  const canWs = [...actor.permissions].some((c) => c.startsWith('workschedule.'));
+  if (!canRbac && !canOrg && !canEmp && !canWs) throw forbidden('MISSING_PERMISSION', 'Permission denied');
   const limit = Math.min(Math.max(q.limit ?? 25, 1), 100);
   const offset = Math.max(q.offset ?? 0, 0);
   const r = await tx.query(
@@ -492,6 +497,10 @@ export async function listAuditEvents(
          SELECT 'employee', ea.id, ea.action, 'employee', ea.employee_id, ea.before_state,
                 ea.after_state, ea.request_id, ea.at, ea.actor_user_id, NULL
            FROM employee_audit_log ea WHERE $8
+         UNION ALL
+         SELECT 'work_schedule', w.id, w.entity_type || '.' || w.action, w.entity_type, w.entity_id, w.before_state,
+                w.after_state, w.request_id, w.created_at, w.actor_user_id, NULL
+           FROM work_schedule_audit_log w WHERE $9
        ) x
        LEFT JOIN users u ON u.id = x.actor_user_id
       WHERE ($3::text IS NULL OR x.category = $3)
@@ -499,7 +508,7 @@ export async function listAuditEvents(
         AND ($5::bigint IS NULL OR x.target_id = $5)
       ORDER BY x.at DESC, x.id DESC
       LIMIT $6 OFFSET $7`,
-    [canRbac, canOrg, q.category ?? null, q.targetType ?? null, q.targetId ?? null, limit + 1, offset, canEmp],
+    [canRbac, canOrg, q.category ?? null, q.targetType ?? null, q.targetId ?? null, limit + 1, offset, canEmp, canWs],
   );
   return { items: r.rows.slice(0, limit), hasMore: r.rows.length > limit, limit, offset };
 }

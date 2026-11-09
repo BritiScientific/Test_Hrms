@@ -22,7 +22,7 @@ const adminUrl = (dbName?: string) => {
 const ownerUrl = () => {
   const u = new URL(adminUrl(DB));
   u.username = 'hrms_owner';
-  u.password = process.env.OWNER_PASSWORD ?? 'change_me_owner';
+  u.password = encodeURIComponent(process.env.OWNER_PASSWORD ?? 'change_me_owner');
   return u.toString();
 };
 
@@ -124,7 +124,11 @@ describe('db:migrate', () => {
 
   test('applies the pending migrations', async () => {
     const out = migrate('--baseline', '010', '--skip-backup');
-    assert.match(out, /Applied 5 migration/);
+    // Everything after 010: the leave replacement (011-015) and any later module migrations.
+    const pending = readdirSync(path.join(root, 'db', 'migrations'))
+      .filter((f) => /^0*[1-9]\d*_.*\.sql$/.test(f) && f.slice(0, 3) > '010').length;
+    assert.match(out, new RegExp(`Applied ${pending} migration`));
+    assert.match(out, /015_leave_comp_off_workflow\.sql \.\.\. ok/);
     assert.match(migrate(), /Nothing to apply/);
   });
 });

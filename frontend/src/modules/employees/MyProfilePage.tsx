@@ -10,7 +10,7 @@ import { ApiError } from '@/services/api-client';
 import { employeesApi } from '@/services/employees-api';
 import { formatDate } from '@/utils/format';
 import { EmployeeForm } from './EmployeeForm';
-import { ProfileChecklist, STATUS_LABEL, empKeys, employmentLabel } from './shared';
+import { ProfileChecklist, STATUS_LABEL, empKeys, employeeTypeLabel } from './shared';
 
 /** D — Self-service: the employee completes their own details; job details stay with HR. */
 export default function MyProfilePage() {
@@ -57,7 +57,7 @@ export default function MyProfilePage() {
                 ['Department', e.department?.name ?? '—'],
                 ['Reports to', e.manager?.name ?? '—'],
                 ['Joined', formatDate(e.dateOfJoining, me.tenant.preferences)],
-                ['Employment', `${STATUS_LABEL[e.status]} · ${employmentLabel(e.employmentType)}`],
+                ['Employment', `${STATUS_LABEL[e.status]} · ${employeeTypeLabel(e)}`],
                 ['Work email', e.workEmail],
               ].map(([k, v]) => (
                 <div key={k}><dt className="text-xs text-muted">{k}</dt><dd className="break-words text-ink">{v}</dd></div>

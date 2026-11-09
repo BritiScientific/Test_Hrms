@@ -10,7 +10,19 @@ export const empKeys = {
   mine: ['employees', 'mine'] as const,
   departments: ['employees', 'departments'] as const,
   managers: ['employees', 'managers'] as const,
+  employeeTypes: ['employees', 'employee-types'] as const,
 };
+
+/** Active employee types for the create/edit dropdown. */
+export const useEmployeeTypeOptions = (enabled = true) =>
+  useQuery({ queryKey: empKeys.employeeTypes, queryFn: employeesApi.employeeTypes, enabled, staleTime: 60_000 });
+
+/**
+ * The employee's type, falling back to the legacy employment type label for a
+ * record the migration backfill could not match.
+ */
+export const employeeTypeLabel = (e: Pick<Employee, 'employeeTypeName' | 'employmentType'>) =>
+  e.employeeTypeName ?? employmentLabel(e.employmentType);
 
 export const useDepartments = (enabled = true) =>
   useQuery({ queryKey: empKeys.departments, queryFn: employeesApi.departments, enabled, staleTime: 60_000 });

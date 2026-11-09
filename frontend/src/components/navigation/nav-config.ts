@@ -1,5 +1,5 @@
 import {
-  BriefcaseBusiness, Building2, CalendarCheck, CalendarDays, CalendarPlus, CalendarRange, ChartNoAxesCombined, ChartPie,
+  BriefcaseBusiness, Building2, CalendarCheck, CalendarClock, CalendarDays, CalendarPlus, CalendarRange, ChartNoAxesCombined, ChartPie,
   ClipboardList, FileBarChart, GitBranch, GraduationCap, History, IdCard, KeyRound, LayoutDashboard, ListChecks, Network,
   Repeat, ScrollText, ShieldCheck, SlidersHorizontal, Tags, UserCog, Users, Wallet, type LucideIcon,
 } from 'lucide-react';
@@ -77,6 +77,7 @@ export const MAIN_NAV: NavGroup[] = [
     label: 'Administration',
     items: [
       { label: 'Organization', to: '/settings/organization/profile', icon: Building2, anyOf: PERMS.orgProfile },
+      { label: 'Work Schedule', to: '/settings/work-schedule', icon: CalendarClock, anyOf: PERMS.workSchedule },
       { label: 'Roles & access', to: '/settings/access/roles', icon: ShieldCheck, anyOf: PERMS.rolesView },
     ],
   },
@@ -103,6 +104,10 @@ export const SETTINGS_NAV: NavGroup[] = [
       { label: 'Organization settings', to: '/settings/organization/preferences', icon: SlidersHorizontal, anyOf: PERMS.orgSettings },
       { label: 'Organization Chart', to: '/settings/organization-chart', icon: Network, anyOf: PERMS.orgChart },
     ],
+  },
+  {
+    label: 'Work Schedule',
+    items: [{ label: 'Work Schedule', to: '/settings/work-schedule', icon: CalendarClock, anyOf: PERMS.workSchedule }],
   },
   {
     label: 'Access control',

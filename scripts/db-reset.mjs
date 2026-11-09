@@ -53,7 +53,8 @@ async function runFile(client, label, sql) {
 const adminUrl = new URL(ADMIN_URL);
 const ownerUrl = new URL(ADMIN_URL);
 ownerUrl.username = 'hrms_owner';
-ownerUrl.password = OWNER_PASSWORD;
+// Encode: the URL setter leaves '%' as-is, and pg would then percent-decode it.
+ownerUrl.password = encodeURIComponent(OWNER_PASSWORD);
 ownerUrl.pathname = `/${DB_NAME}`;
 
 const admin = await connect(adminUrl.toString());

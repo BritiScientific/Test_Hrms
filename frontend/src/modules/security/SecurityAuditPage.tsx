@@ -3,7 +3,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { History, LogOut, Monitor } from 'lucide-react';
 import { PERMS, useAuth, useMe } from '@/app/providers/AuthProvider';
 import { EmptyState, ErrorState, LoadingBlock, PageHeader } from '@/components/feedback/States';
-import { Badge } from '@/components/ui/Badge';
+import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Field';
@@ -13,6 +13,7 @@ import { ApiError } from '@/services/api-client';
 import { authApi } from '@/services/auth-api';
 import { rbacApi } from '@/services/rbac-api';
 import { describeUserAgent, formatDateTime, relativeTime } from '@/utils/format';
+import type { AuditEvent } from '@/types/api';
 import { auditActionLabel } from '@/utils/permissions';
 import { AuditDiff } from './AuditDiff';
 
@@ -89,9 +90,16 @@ function SessionsCard() {
 
 const PAGE = 25;
 
+const CATEGORY: Record<AuditEvent['category'], { label: string; tone: BadgeTone }> = {
+  rbac: { label: 'Access', tone: 'violet' },
+  organization: { label: 'Organization', tone: 'primary' },
+  employee: { label: 'Employees', tone: 'success' },
+  work_schedule: { label: 'Work schedule', tone: 'warning' },
+};
+
 function AuditLogCard() {
   const me = useMe();
-  const [category, setCategory] = useState<'' | 'rbac' | 'organization' | 'employee'>('');
+  const [category, setCategory] = useState<'' | 'rbac' | 'organization' | 'employee' | 'work_schedule'>('');
   const q = useInfiniteQuery({
     queryKey: ['audit', 'log', category],
     queryFn: ({ pageParam }) => rbacApi.auditEvents({ limit: PAGE, offset: pageParam, category: category || undefined }),
@@ -111,6 +119,7 @@ function AuditLogCard() {
             <option value="rbac">Roles & access</option>
             <option value="organization">Organization</option>
             <option value="employee">Employees</option>
+            <option value="work_schedule">Work schedule</option>
           </Select>
         }
       />
@@ -124,9 +133,7 @@ function AuditLogCard() {
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
                   {auditActionLabel(e.action)}
-                  <Badge tone={e.category === 'rbac' ? 'violet' : e.category === 'employee' ? 'success' : 'primary'}>
-                    {e.category === 'rbac' ? 'Access' : e.category === 'employee' ? 'Employees' : 'Organization'}
-                  </Badge>
+                  <Badge tone={CATEGORY[e.category].tone}>{CATEGORY[e.category].label}</Badge>
                 </p>
                 <time className="text-xs text-muted tabular" dateTime={e.at}>{formatDateTime(e.at, me.tenant.preferences)}</time>
               </div>

@@ -13,13 +13,13 @@ import { ApiError } from '@/services/api-client';
 import type { EmployeePatch } from '@/services/employees-api';
 import type { Employee } from '@/types/api';
 import { useOrgOptions } from '../organization/hooks';
-import { EMPLOYMENT_TYPES, GENDERS, STATUS_LABEL, useDepartments, useManagerOptions } from './shared';
+import { GENDERS, STATUS_LABEL, useDepartments, useEmployeeTypeOptions, useManagerOptions } from './shared';
 
 type Mode = 'hr' | 'self';
 
 interface Values {
   // HR
-  fullName: string; employeeCode: string; jobTitle: string; employmentType: string; departmentId: string;
+  fullName: string; employeeCode: string; jobTitle: string; employeeTypeId: string; departmentId: string;
   managerId: string; dateOfJoining: string; workLocation: string; status: string;
   // self-service
   preferredName: string; dateOfBirth: string; gender: string; personalEmail: string; mobilePhone: string;
@@ -30,7 +30,7 @@ interface Values {
 const s = (v: unknown) => (v == null ? '' : String(v));
 function toValues(e: Employee): Values {
   return {
-    fullName: e.fullName, employeeCode: e.employeeCode, jobTitle: s(e.jobTitle), employmentType: e.employmentType,
+    fullName: e.fullName, employeeCode: e.employeeCode, jobTitle: s(e.jobTitle), employeeTypeId: s(e.employeeTypeId),
     departmentId: s(e.department?.id), managerId: s(e.manager?.id), dateOfJoining: s(e.dateOfJoining),
     workLocation: s(e.workLocation), status: e.status,
     preferredName: s(e.preferredName), dateOfBirth: s(e.dateOfBirth), gender: s(e.gender),
@@ -41,7 +41,9 @@ function toValues(e: Employee): Values {
   };
 }
 
-const HR_KEYS = ['fullName', 'employeeCode', 'jobTitle', 'employmentType', 'departmentId', 'managerId', 'dateOfJoining', 'workLocation', 'status'] as const;
+const HR_KEYS = ['fullName', 'employeeCode', 'jobTitle', 'employeeTypeId', 'departmentId', 'managerId', 'dateOfJoining', 'workLocation', 'status'] as const;
+/** Sent as numbers; the server sets employment_type from the employee type's base category. */
+const ID_KEYS = new Set<string>(['employeeTypeId', 'departmentId', 'managerId']);
 const SELF_TOP = ['preferredName', 'dateOfBirth', 'gender', 'personalEmail', 'mobilePhone'] as const;
 const ADDRESS: Record<string, string> = { line1: 'line1', line2: 'line2', city: 'city', stateProvince: 'stateProvince', postalCode: 'postalCode', countryCode: 'countryCode' };
 const EMERGENCY: Record<string, string> = { ecName: 'name', ecRelation: 'relation', ecPhone: 'phone' };
@@ -64,7 +66,7 @@ function diff(values: Values, initial: Values, mode: Mode): EmployeePatch {
   if (mode === 'hr') {
     for (const k of HR_KEYS) {
       if (!changed(k)) continue;
-      patch[k] = k === 'departmentId' || k === 'managerId' ? (values[k] ? Number(values[k]) : null) : out(k);
+      patch[k] = ID_KEYS.has(k) ? (values[k] ? Number(values[k]) : null) : out(k);
     }
   }
   for (const k of SELF_TOP) if (changed(k)) patch[k] = out(k);
@@ -94,6 +96,18 @@ export function EmployeeForm({ employee, mode, readOnly, onSave }: {
   const options = useOrgOptions();
   const departments = useDepartments(mode === 'hr');
   const managers = useManagerOptions(mode === 'hr' && !readOnly);
+  const employeeTypes = useEmployeeTypeOptions(mode === 'hr' && !readOnly);
+  // Active types, plus the saved one even when it has since been deactivated (marked as such).
+  const employeeTypeChoices = useMemo(() => {
+    const list = (employeeTypes.data ?? []).map((t) => ({ id: t.id, name: t.name }));
+    if (employee.employeeTypeId && !list.some((t) => t.id === employee.employeeTypeId)) {
+      list.unshift({
+        id: employee.employeeTypeId,
+        name: `${employee.employeeTypeName ?? 'Current type'}${employee.employeeTypeActive === false ? ' (inactive)' : ''}`,
+      });
+    }
+    return list;
+  }, [employeeTypes.data, employee.employeeTypeId, employee.employeeTypeName, employee.employeeTypeActive]);
   const initial = useMemo(() => toValues(employee), [employee]);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
@@ -106,6 +120,7 @@ export function EmployeeForm({ employee, mode, readOnly, onSave }: {
     setError(null);
     setConflict(false);
     if (mode === 'hr' && values.fullName.trim().length < 2) return setFieldError('fullName', { message: 'Enter the full name' });
+    if (mode === 'hr' && !values.employeeTypeId) return setFieldError('employeeTypeId', { message: 'Choose an employee type' });
     const patch = diff(values, initial, mode);
     if (!Object.keys(patch).length) return;
     try {
@@ -156,11 +171,17 @@ export function EmployeeForm({ employee, mode, readOnly, onSave }: {
             {text('fullName', 'Full name', { required: true })}
             {text('employeeCode', 'Employee code', { required: true })}
             {text('jobTitle', 'Job title')}
-            <Field label="Employment type">
-              {({ id }) => (
-                <Select id={id} disabled={readOnly} {...register('employmentType')}>
-                  {EMPLOYMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </Select>
+            <Field label="Employee type" required error={errors.employeeTypeId?.message}
+              hint={employee.employeeTypeActive === false ? 'This type has been deactivated. It stays until you choose another.' : undefined}>
+              {({ id, describedBy, invalid }) => (
+                // Controlled: options arrive after the form, and the saved (possibly inactive) type must still show.
+                <Controller control={control} name="employeeTypeId" render={({ field }) => (
+                  <Select id={id} disabled={readOnly} aria-describedby={describedBy} aria-invalid={invalid}
+                    value={field.value} onChange={field.onChange} onBlur={field.onBlur}>
+                    {!employee.employeeTypeId && <option value="">Choose…</option>}
+                    {employeeTypeChoices.map((t) => <option key={t.id} value={String(t.id)}>{t.name}</option>)}
+                  </Select>
+                )} />
               )}
             </Field>
             <Field label="Department" error={errors.departmentId?.message}>

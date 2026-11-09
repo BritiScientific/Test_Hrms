@@ -8,6 +8,7 @@ import { TenantLayout } from '@/layouts/TenantLayout';
 import { MAIN_NAV, firstSettingsPath, visibleGroups } from '@/components/navigation/nav-config';
 import { ErrorState } from '@/components/feedback/States';
 import UnauthorizedPage, { NotFoundPage } from '@/modules/auth/UnauthorizedPage';
+import { WORK_SCHEDULE_TABS, firstVisibleTab, tabPath, tabPermissions } from '@/modules/work-schedule/tabs';
 
 /** Route-level code splitting: each screen is its own chunk. */
 const page = (load: () => Promise<{ default: ComponentType }>) => async () => ({ Component: (await load()).default });
@@ -35,6 +36,13 @@ function LeaveIndex() {
   const { canAny, me } = useAuth();
   const items = visibleGroups(MAIN_NAV, canAny, !!me?.employee).flatMap((g) => g.items).filter((i) => i.to.startsWith('/leave/'));
   return <Navigate to={items[0]?.to ?? '/unauthorized'} replace />;
+}
+
+/** /settings/work-schedule goes to the first tab this user may view. */
+function WorkScheduleIndex() {
+  const { canAny } = useAuth();
+  const first = firstVisibleTab(canAny);
+  return <Navigate to={first ? tabPath(first.key) : '/unauthorized'} replace />;
 }
 
 function RouteError() {
@@ -143,6 +151,20 @@ export const routes: RouteObject[] = [
                 ],
               },
               { path: 'organization-chart', handle: { crumb: 'Organization Chart' }, lazy: guarded(PERMS.orgChart, () => import('@/modules/organization/OrganizationChartPage')) },
+              {
+                // Settings > Work Schedule > <tab>: a layout (header + tab strip) and one guarded child per tab.
+                path: 'work-schedule',
+                handle: { crumb: 'Work Schedule', crumbTo: '/settings/work-schedule' },
+                lazy: guarded(PERMS.workSchedule, () => import('@/modules/work-schedule/WorkSchedulePage')),
+                children: [
+                  { index: true, element: <WorkScheduleIndex /> },
+                  ...WORK_SCHEDULE_TABS.map((t): RouteObject => ({
+                    path: t.key,
+                    handle: { crumb: t.label },
+                    lazy: guarded(tabPermissions(t), () => import('@/modules/work-schedule/WorkScheduleTab')),
+                  })),
+                ],
+              },
               {
                 path: 'access',
                 handle: { crumb: 'Access control', crumbTo: '/settings/access/roles' },

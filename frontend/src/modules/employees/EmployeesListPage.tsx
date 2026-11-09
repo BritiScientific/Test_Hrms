@@ -13,7 +13,7 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { employeesApi } from '@/services/employees-api';
 import { formatDate } from '@/utils/format';
 import { QuickAddDialog } from './QuickAddDialog';
-import { AccessBadge, ProfileBadge, empKeys, useDepartments } from './shared';
+import { AccessBadge, ProfileBadge, empKeys, employeeTypeLabel, useDepartments } from './shared';
 
 const PAGE = 25;
 
@@ -94,6 +94,7 @@ export default function EmployeesListPage() {
                   <tr>
                     <th scope="col" className="px-4 py-2.5">Employee</th>
                     <th scope="col" className="px-4 py-2.5">Department</th>
+                    <th scope="col" className="px-4 py-2.5">Type</th>
                     <th scope="col" className="px-4 py-2.5">Manager</th>
                     <th scope="col" className="px-4 py-2.5">Joined</th>
                     <th scope="col" className="px-4 py-2.5">Access</th>
@@ -113,6 +114,7 @@ export default function EmployeesListPage() {
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-slate-700">{e.department?.name ?? <span className="text-muted">—</span>}</td>
+                      <td className="px-4 py-3 text-slate-700">{employeeTypeLabel(e)}</td>
                       <td className="px-4 py-3 text-slate-700">{e.manager?.name ?? <span className="text-muted">—</span>}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-muted">{formatDate(e.dateOfJoining, me.tenant.preferences)}</td>
                       <td className="px-4 py-3"><AccessBadge status={e.access.status} /></td>
@@ -129,7 +131,7 @@ export default function EmployeesListPage() {
                     <Avatar name={e.fullName} size="md" />
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium text-ink">{e.fullName}</span>
-                      <span className="block truncate text-xs text-muted">{e.employeeCode}{e.jobTitle && ` · ${e.jobTitle}`}{e.department && ` · ${e.department.name}`}</span>
+                      <span className="block truncate text-xs text-muted">{e.employeeCode}{e.jobTitle && ` · ${e.jobTitle}`}{e.department && ` · ${e.department.name}`} · {employeeTypeLabel(e)}</span>
                       <span className="mt-2 flex flex-wrap gap-1.5"><AccessBadge status={e.access.status} /><ProfileBadge profile={e.profile} /></span>
                     </span>
                   </Link>

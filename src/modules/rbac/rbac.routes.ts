@@ -32,7 +32,7 @@ const UserListQuery = z.object({
 const AuditQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
-  category: z.enum(['rbac', 'organization', 'employee']).optional(),
+  category: z.enum(['rbac', 'organization', 'employee', 'work_schedule']).optional(),
   targetType: z.string().regex(/^[a-z_]{1,30}$/).optional(),
   targetId: z.coerce.number().int().positive().optional(),
 });

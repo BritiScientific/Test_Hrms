@@ -71,5 +71,15 @@ export function auditActionLabel(action: string): string {
     'employee.invite': 'Activation link issued',
     'employee.profile.complete': 'Profile completed',
   };
-  return labels[action] ?? action;
+  if (labels[action]) return labels[action];
+  // Work schedule events are "<entity>.<created|updated|activated|deactivated>".
+  const ws = /^(employee_type|shift|work_type|rotating_shift|rotating_work_type|shift_schedule)\.(created|updated|activated|deactivated)$/.exec(action);
+  if (ws) {
+    const entity: Record<string, string> = {
+      employee_type: 'Employee type', shift: 'Shift', work_type: 'Work type', rotating_shift: 'Rotating shift',
+      rotating_work_type: 'Rotating work type', shift_schedule: 'Shift schedule',
+    };
+    return `${entity[ws[1]]} ${ws[2]}`;
+  }
+  return action;
 }

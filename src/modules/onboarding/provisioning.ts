@@ -55,6 +55,7 @@ export async function provisionOrganization(client: pg.ClientBase, raw: Provisio
     );
     const tenantId = Number(t.rows[0].id);
     await client.query(`INSERT INTO tenant_settings (tenant_id) VALUES ($1)`, [tenantId]);
+    await seedDefaultEmployeeTypes(client, tenantId);
 
     const r = await client.query(
       `INSERT INTO roles (tenant_id, name, description, is_system_role)
@@ -79,6 +80,29 @@ export async function provisionOrganization(client: pg.ClientBase, raw: Provisio
   } catch (e) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw e;
+  }
+}
+
+/**
+ * The four employee types every tenant starts with. Each maps to one legacy
+ * employment_type code, so employees.employment_type stays valid. Same rows as
+ * migration 017 seeds for tenants that already existed.
+ */
+export const DEFAULT_EMPLOYEE_TYPES = [
+  { name: 'Full-Time', baseCategory: 'full_time', description: 'Permanent employee working full standard hours' },
+  { name: 'Part-Time', baseCategory: 'part_time', description: 'Employee working reduced standard hours' },
+  { name: 'Contract', baseCategory: 'contract', description: 'Fixed-term or contractual engagement' },
+  { name: 'Intern', baseCategory: 'intern', description: 'Trainee or internship engagement' },
+] as const;
+
+/** Idempotent: a re-run (or a tenant that already has these names) inserts nothing. */
+export async function seedDefaultEmployeeTypes(client: pg.ClientBase, tenantId: number) {
+  for (const t of DEFAULT_EMPLOYEE_TYPES) {
+    await client.query(
+      `INSERT INTO employee_types (tenant_id, name, base_category, description)
+       VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+      [tenantId, t.name, t.baseCategory, t.description],
+    );
   }
 }
 

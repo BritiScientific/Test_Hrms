@@ -47,7 +47,8 @@ if (baseline !== undefined && !/^\d{3}$/.test(baseline)) throw new Error('--base
 
 const ownerUrl = new URL(process.env.ADMIN_DATABASE_URL ?? 'postgres://postgres@localhost:5432/postgres');
 ownerUrl.username = 'hrms_owner';
-ownerUrl.password = process.env.OWNER_PASSWORD ?? 'change_me_owner';
+// Encode: the URL setter leaves '%' as-is, and pg would then percent-decode it.
+ownerUrl.password = encodeURIComponent(process.env.OWNER_PASSWORD ?? 'change_me_owner');
 ownerUrl.pathname = `/${DB_NAME}`;
 
 const migrationsDir = join(root, 'db', 'migrations');

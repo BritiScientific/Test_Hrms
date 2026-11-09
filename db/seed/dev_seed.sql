@@ -162,6 +162,72 @@ BEGIN
   INSERT INTO user_roles (tenant_id, user_id, role_id, effective_from) VALUES
     (t1, u_kiran, r_emp, '2024-01-01');
 
+  -- --------------------------------------------- Work schedule configuration --
+  -- Migration 017 seeds the four default employee types for tenants that exist
+  -- when it runs; these tenants are created afterwards, so they are seeded here
+  -- the same way provisioning.ts does it for a real new tenant.
+  INSERT INTO employee_types (tenant_id, name, base_category, description)
+  SELECT t.id, v.name, v.base_category, v.description
+    FROM (VALUES (t1), (t2)) AS t(id)
+   CROSS JOIN (VALUES
+     ('Full-Time', 'full_time', 'Permanent employee working full standard hours'),
+     ('Part-Time', 'part_time', 'Employee working reduced standard hours'),
+     ('Contract',  'contract',  'Fixed-term or contractual engagement'),
+     ('Intern',    'intern',    'Trainee or internship engagement')
+   ) AS v(name, base_category, description);
+
+  -- Same rule the API enforces: employment_type always equals base_category.
+  UPDATE employees e
+     SET employee_type_id = et.id
+    FROM employee_types et
+   WHERE et.tenant_id = e.tenant_id AND et.base_category = e.employment_type;
+
+  -- Tenant Admin already holds every permission (granted above from the whole
+  -- catalog). HR Admin configures work schedules, like it configures leave.
+  INSERT INTO role_permissions (tenant_id, role_id, permission_id)
+  SELECT t1, r_hr, id FROM permissions WHERE module = 'work_schedule';
+  INSERT INTO role_permissions (tenant_id, role_id, permission_id)
+  SELECT t2, r2_hr, id FROM permissions WHERE module = 'work_schedule';
+
+  -- Sample shifts, work types, a rotation and a weekly schedule for tenant 1.
+  INSERT INTO work_shifts (tenant_id, name, grace_time_minutes, description) VALUES
+    (t1, 'General Shift', 15, '09:00 to 18:00, Monday to Friday'),
+    (t1, 'Morning Shift', 10, '06:00 to 14:00'),
+    (t1, 'Night Shift',   10, '22:00 to 06:00, runs past midnight');
+  INSERT INTO work_types (tenant_id, name, description) VALUES
+    (t1, 'Work From Office', 'On premises'),
+    (t1, 'Work From Home',   'Remote'),
+    (t1, 'Hybrid',           'Split between office and home');
+
+  INSERT INTO rotating_shift_patterns (tenant_id, name, rotation_interval, rotation_unit, description)
+  VALUES (t1, 'Morning / Night Weekly', 1, 'weeks', 'Alternates every week') RETURNING id INTO b;
+  INSERT INTO rotating_shift_pattern_items (tenant_id, pattern_id, shift_id, sequence_order)
+  SELECT t1, b, s.id, s.ord FROM (
+    SELECT id, 1 AS ord FROM work_shifts WHERE tenant_id = t1 AND name = 'Morning Shift'
+    UNION ALL
+    SELECT id, 2 FROM work_shifts WHERE tenant_id = t1 AND name = 'Night Shift') s;
+
+  INSERT INTO rotating_work_type_patterns (tenant_id, name, rotation_interval, rotation_unit, description)
+  VALUES (t1, 'Office / Home Weekly', 1, 'weeks', 'Alternates every week') RETURNING id INTO b;
+  INSERT INTO rotating_work_type_pattern_items (tenant_id, pattern_id, work_type_id, sequence_order)
+  SELECT t1, b, w.id, w.ord FROM (
+    SELECT id, 1 AS ord FROM work_types WHERE tenant_id = t1 AND name = 'Work From Office'
+    UNION ALL
+    SELECT id, 2 FROM work_types WHERE tenant_id = t1 AND name = 'Work From Home') w;
+
+  -- Mon-Fri 09:00-18:00 with a 480 minute minimum; Saturday and Sunday off.
+  INSERT INTO work_shift_schedules (tenant_id, shift_id, name, default_minimum_working_minutes, description)
+  SELECT t1, id, 'General Weekly Schedule', 480, 'Standard Monday to Friday week'
+    FROM work_shifts WHERE tenant_id = t1 AND name = 'General Shift'
+  RETURNING id INTO b;
+  INSERT INTO work_shift_schedule_days
+    (tenant_id, schedule_id, day_of_week, is_working_day, start_time, end_time, minimum_working_minutes)
+  SELECT t1, b, d, d <= 5,
+         CASE WHEN d <= 5 THEN TIME '09:00' END,
+         CASE WHEN d <= 5 THEN TIME '18:00' END,
+         CASE WHEN d <= 5 THEN 480 ELSE 0 END
+    FROM generate_series(1, 7) AS d;
+
   -- ---------------------------------------------------- Leave configuration --
   -- Sample data for development. Real tenants configure all of this themselves.
   INSERT INTO leave_types (tenant_id, code, name, category, is_paid, allow_half_day, requires_attachment,

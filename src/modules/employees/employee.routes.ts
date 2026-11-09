@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/authenticate';
 import { idParam, tenantHandler } from '../../middleware/http';
 import { requirePermission } from '../../middleware/require-permission';
 import { forbidden } from '../../shared/errors';
+import { employeeTypeOptions } from '../work-schedule/employee-type.service';
 import * as emp from './employee.service';
 
 // ------------------------------------------------------------- schemas ----
@@ -49,7 +50,10 @@ const HrPatch = z.object({
   departmentId: optId,
   managerId: optId,
   jobTitle: optText(150),
+  /** Legacy field, still accepted from older clients; mapped to the matching default employee type. */
   employmentType: z.enum(['full_time', 'part_time', 'contract', 'intern']).optional(),
+  /** Preferred: the tenant's employee type. employment_type is then set from its base category. */
+  employeeTypeId: z.coerce.number().int().positive().optional(),
   workLocation: optText(150),
   dateOfJoining: isoDate.optional(),
   status: z.enum(['active', 'on_notice', 'exited']).optional(),
@@ -66,6 +70,7 @@ const QuickAdd = z.object({
   managerId: optId,
   jobTitle: optText(150),
   employmentType: z.enum(['full_time', 'part_time', 'contract', 'intern']).optional(),
+  employeeTypeId: z.coerce.number().int().positive().optional(),
   roleIds: z.array(z.coerce.number().int().positive()).max(10).optional(),
   sendInvite: z.boolean().optional(),
 }).strict();
@@ -94,6 +99,10 @@ employeeRouter.get('/employees', requirePermission('employee.view'),
 
 employeeRouter.get('/employees/next-code', requirePermission('employee.create'),
   tenantHandler(async (tx) => ({ employeeCode: await emp.nextEmployeeCode(tx) })));
+
+/** Active employee types for the create/edit form. Needs no workschedule.* permission. */
+employeeRouter.get('/employees/lookups/employee-types', requirePermission('employee.create', 'employee.update'),
+  tenantHandler((tx) => employeeTypeOptions(tx)));
 
 /** A — Quick add: one transaction for login, membership, record, manager, roles and activation link. */
 employeeRouter.post('/employees', requirePermission('employee.create'),

@@ -211,7 +211,7 @@ export interface EffectivePermission extends Permission {
 }
 
 export interface AuditEvent {
-  category: 'rbac' | 'organization' | 'employee';
+  category: 'rbac' | 'organization' | 'employee' | 'work_schedule';
   id: number;
   action: string;
   target_type: string;
@@ -255,7 +255,13 @@ export interface Employee {
   preferredName: string | null;
   workEmail: string;
   jobTitle: string | null;
+  /** Legacy category, always equal to the employee type's base category. */
   employmentType: EmploymentType;
+  /** The tenant's employee type; null only for a row the migration backfill could not match. */
+  employeeTypeId: number | null;
+  employeeTypeName: string | null;
+  /** An inactive type stays on existing employees but is not offered for new ones. */
+  employeeTypeActive: boolean | null;
   workLocation: string | null;
   dateOfJoining: string | null;
   status: EmployeeStatus;

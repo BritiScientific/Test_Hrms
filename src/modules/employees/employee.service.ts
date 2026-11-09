@@ -75,6 +75,7 @@ export interface QuickAddInput {
   managerId?: number | null;
   jobTitle?: string | null;
   employmentType?: string;
+  employeeTypeId?: number;
   roleIds?: number[];
   sendInvite?: boolean;
 }
@@ -91,6 +92,7 @@ export interface EmployeePatch {
 
 const BASE = `
   SELECT e.*, d.name AS department_name, u.email AS work_email, tu.status AS membership_status,
+         et.name AS employee_type_name, et.is_active AS employee_type_active,
          m.id AS manager_id, m.full_name AS manager_name, m.job_title AS manager_title,
          inv.expires_at AS invite_expires_at, inv.created_at AS invited_at,
          CASE WHEN e.user_id IS NULL THEN 'no_login'
@@ -100,6 +102,7 @@ const BASE = `
               ELSE tu.status END AS access_status
     FROM employees e
     LEFT JOIN departments d  ON d.tenant_id = e.tenant_id AND d.id = e.department_id
+    LEFT JOIN employee_types et ON et.tenant_id = e.tenant_id AND et.id = e.employee_type_id
     LEFT JOIN users u        ON u.id = e.user_id
     LEFT JOIN tenant_users tu ON tu.tenant_id = e.tenant_id AND tu.user_id = e.user_id
     LEFT JOIN LATERAL (
@@ -136,6 +139,11 @@ export function toEmployee(row: any) {
     workEmail: row.work_email,
     jobTitle: row.job_title,
     employmentType: row.employment_type,
+    // Null only for a row the migration backfill could not match; the UI then shows employmentType.
+    employeeTypeId: row.employee_type_id == null ? null : Number(row.employee_type_id),
+    employeeTypeName: (row.employee_type_name ?? null) as string | null,
+    // An inactive type stays readable on existing employees, but is never offered for new ones.
+    employeeTypeActive: (row.employee_type_active ?? null) as boolean | null,
     workLocation: row.work_location,
     dateOfJoining: row.date_of_joining,
     status: row.status,
@@ -232,6 +240,19 @@ export async function quickAddEmployee(tx: Tx, actor: AuthContext, input: QuickA
   const code = input.employeeCode?.trim() || (await nextEmployeeCode(tx));
   const dupCode = await tx.query(`SELECT 1 FROM employees WHERE employee_code = $1`, [code]);
   if (dupCode.rowCount) fieldErrors.employeeCode = 'This employee code is already used';
+
+  // Employee type: the chosen one (must be active), or for an older client that
+  // only sends employmentType, the default type for that category.
+  let employmentType = input.employmentType ?? 'full_time';
+  let employeeTypeId: number | null = null;
+  if (input.employeeTypeId) {
+    const t = await lockEmployeeType(tx, input.employeeTypeId);
+    if (!t?.is_active) fieldErrors.employeeTypeId = 'Choose an active employee type';
+    else { employeeTypeId = Number(t.id); employmentType = t.base_category; }
+  } else {
+    const t = await defaultEmployeeType(tx, employmentType);
+    employeeTypeId = t ? Number(t.id) : null;
+  }
   const roleIds = [...new Set(input.roleIds ?? [])];
   if (roleIds.length && !actor.permissions.has('roles.assign')) {
     throw forbidden('MISSING_PERMISSION', 'Assigning roles needs the roles.assign permission');
@@ -265,10 +286,10 @@ export async function quickAddEmployee(tx: Tx, actor: AuthContext, input: QuickA
   // 3. Employee record.
   const e = await tx.query(
     `INSERT INTO employees (tenant_id, user_id, employee_code, full_name, department_id, date_of_joining,
-                            job_title, employment_type, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 'full_time'), $9) RETURNING id`,
+                            job_title, employment_type, employee_type_id, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
     [actor.tenantId, userId, code, input.fullName.trim(), input.departmentId ?? null, input.dateOfJoining,
-     input.jobTitle?.trim() || null, input.employmentType ?? null, actor.userId],
+     input.jobTitle?.trim() || null, employmentType, employeeTypeId, actor.userId],
   );
   const employeeId = Number(e.rows[0].id);
 
@@ -294,6 +315,7 @@ export async function quickAddEmployee(tx: Tx, actor: AuthContext, input: QuickA
   await employeeAudit(tx, actor, 'employee.create', employeeId, null, {
     employeeCode: code, fullName: created.fullName, workEmail: created.workEmail, dateOfJoining: created.dateOfJoining,
     departmentId: input.departmentId ?? null, managerId: input.managerId ?? null, roleIds,
+    employeeTypeId, employeeType: created.employeeTypeName, employmentType,
     linkedExistingMember: membership === 'active',
   });
   await enqueueEvent(tx, actor.tenantId, 'employee.created', 'employee', employeeId, {
@@ -372,6 +394,27 @@ export async function updateEmployee(tx: Tx, actor: AuthContext, employeeId: num
   if (sets.employee_code && sets.employee_code !== row.employee_code) {
     const dup = await tx.query(`SELECT 1 FROM employees WHERE employee_code = $1 AND id <> $2`, [sets.employee_code, employeeId]);
     if (dup.rowCount) fieldErrors.employeeCode = 'This employee code is already used';
+  }
+  // Employee type (HR only). employment_type always follows the type's base
+  // category, in the same UPDATE. Keeping an already-saved inactive type is
+  // allowed; switching TO an inactive type is not.
+  if (mode === 'hr' && patch.employeeTypeId !== undefined) {
+    const requested = Number(patch.employeeTypeId);
+    const current = row.employee_type_id == null ? null : Number(row.employee_type_id);
+    const t = await lockEmployeeType(tx, requested);
+    if (!t || (requested !== current && !t.is_active)) fieldErrors.employeeTypeId = 'Choose an active employee type';
+    else {
+      sets.employee_type_id = Number(t.id);
+      sets.employment_type = t.base_category;
+    }
+  } else if (mode === 'hr' && sets.employment_type !== undefined && sets.employment_type !== row.employment_type) {
+    // Older client that only knows employmentType: keep the current type if it
+    // already has that category, otherwise move to the default for it.
+    const cur = row.employee_type_id == null ? null : await lockEmployeeType(tx, Number(row.employee_type_id));
+    if (cur?.base_category !== sets.employment_type) {
+      const t = await defaultEmployeeType(tx, String(sets.employment_type));
+      sets.employee_type_id = t ? Number(t.id) : null;
+    }
   }
   if (mode === 'hr' && patch.managerId) {
     if (patch.managerId === employeeId) fieldErrors.managerId = 'An employee cannot report to themselves';
@@ -471,6 +514,27 @@ export async function createDepartment(tx: Tx, actor: AuthContext, name: string)
   return { id: r.rows[0].id, name: r.rows[0].name, isActive: r.rows[0].is_active, headcount: 0 };
 }
 
+// --------------------------------------------------------- employee types --
+
+/**
+ * A type in this tenant (RLS hides others), held FOR SHARE until commit so it
+ * cannot be deactivated between this check and the employee write.
+ */
+async function lockEmployeeType(tx: Tx, id: number) {
+  const r = await tx.query(`SELECT id, base_category, is_active FROM employee_types WHERE id = $1 FOR SHARE`, [id]);
+  return r.rows[0] as { id: number; base_category: string; is_active: boolean } | undefined;
+}
+
+/** The type a legacy employmentType maps to: the oldest active type with that base category. */
+async function defaultEmployeeType(tx: Tx, category: string) {
+  const r = await tx.query(
+    `SELECT id, base_category FROM employee_types WHERE base_category = $1 AND is_active
+      ORDER BY id LIMIT 1 FOR SHARE`,
+    [category],
+  );
+  return r.rows[0] as { id: number; base_category: string } | undefined;
+}
+
 // ----------------------------------------------------------------- audit --
 
 async function employeeAudit(tx: Tx, actor: AuthContext, action: string, employeeId: number, before: unknown, after: unknown) {
@@ -492,6 +556,7 @@ function pickDiff(e: Employee, columns: Set<string>) {
   const out: Record<string, unknown> = {};
   for (const c of columns) {
     if (c === 'manager') { out.manager = e.manager?.name ?? null; continue; }
+    if (c === 'employee_type_id') { out.employeeType = e.employeeTypeName; out.employeeTypeId = e.employeeTypeId; continue; }
     if (c === 'department_id') { out.department = e.department?.name ?? null; continue; }
     const field = COLUMN_TO_FIELD[c];
     if (!field) continue;

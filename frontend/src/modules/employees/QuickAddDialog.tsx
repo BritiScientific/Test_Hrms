@@ -17,7 +17,7 @@ import { rbacApi } from '@/services/rbac-api';
 import type { QuickAddResult } from '@/types/api';
 import { cn } from '@/utils/cn';
 import { InviteLink } from './InviteLink';
-import { EMPLOYMENT_TYPES, useDepartments, useInvalidateEmployees, useManagerOptions } from './shared';
+import { useDepartments, useEmployeeTypeOptions, useInvalidateEmployees, useManagerOptions } from './shared';
 
 const schema = z.object({
   fullName: z.string().trim().min(2, 'Enter the full name').max(200),
@@ -27,7 +27,7 @@ const schema = z.object({
   jobTitle: z.string().trim().max(150),
   departmentId: z.string(),
   managerId: z.string(),
-  employmentType: z.string(),
+  employeeTypeId: z.string().min(1, 'Choose an employee type'),
   roleId: z.string(),
   sendInvite: z.boolean(),
 });
@@ -52,13 +52,19 @@ export function QuickAddDialog({ open, onClose }: { open: boolean; onClose: () =
   const roles = useQuery({ queryKey: ['roles'], queryFn: rbacApi.roles, enabled: open && canAssign });
   const nextCode = useQuery({ queryKey: ['employees', 'next-code'], queryFn: employeesApi.nextCode, enabled: open, staleTime: 0 });
   const defaultRole = useMemo(() => roles.data?.find((r) => r.name === 'Employee' && r.is_active)?.id, [roles.data]);
+  const employeeTypes = useEmployeeTypeOptions(open);
+  // "Full-Time" when that type exists, else the first full-time type, else the first type.
+  const defaultType = useMemo(() => {
+    const list = employeeTypes.data ?? [];
+    return (list.find((t) => t.name === 'Full-Time') ?? list.find((t) => t.baseCategory === 'full_time') ?? list[0])?.id;
+  }, [employeeTypes.data]);
   const [more, setMore] = useState(false);
   const [result, setResult] = useState<QuickAddResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const defaults: Values = {
     fullName: '', workEmail: '', dateOfJoining: localToday(), employeeCode: '', jobTitle: '',
-    departmentId: '', managerId: '', employmentType: 'full_time', roleId: '', sendInvite: true,
+    departmentId: '', managerId: '', employeeTypeId: defaultType ? String(defaultType) : '', roleId: '', sendInvite: true,
   };
   const { register, control, handleSubmit, reset, setValue, setError: setFieldError, getValues, formState: { errors, isSubmitting } } =
     useForm<Values>({ resolver: zodResolver(schema), defaultValues: defaults });
@@ -69,6 +75,9 @@ export function QuickAddDialog({ open, onClose }: { open: boolean; onClose: () =
   useEffect(() => {
     if (defaultRole && !getValues('roleId')) setValue('roleId', String(defaultRole));
   }, [defaultRole, getValues, setValue]);
+  useEffect(() => {
+    if (defaultType && !getValues('employeeTypeId')) setValue('employeeTypeId', String(defaultType));
+  }, [defaultType, getValues, setValue]);
 
   const submit = handleSubmit(async (v) => {
     setError(null);
@@ -81,7 +90,8 @@ export function QuickAddDialog({ open, onClose }: { open: boolean; onClose: () =
         jobTitle: v.jobTitle.trim() || null,
         departmentId: v.departmentId ? Number(v.departmentId) : null,
         managerId: v.managerId ? Number(v.managerId) : null,
-        ...(v.employmentType !== 'full_time' ? { employmentType: v.employmentType } : {}),
+        // The server sets employment_type from this type's base category.
+        employeeTypeId: Number(v.employeeTypeId),
         ...(canAssign && v.roleId ? { roleIds: [Number(v.roleId)] } : {}),
         sendInvite: v.sendInvite,
       });
@@ -153,6 +163,14 @@ export function QuickAddDialog({ open, onClose }: { open: boolean; onClose: () =
           <Field label="Date of joining" required error={errors.dateOfJoining?.message}>
             {({ id, describedBy, invalid }) => <Input id={id} type="date" aria-describedby={describedBy} aria-invalid={invalid} {...register('dateOfJoining')} />}
           </Field>
+          <Field label="Employee type" required error={errors.employeeTypeId?.message}>
+            {({ id, describedBy, invalid }) => (
+              <Select id={id} aria-describedby={describedBy} aria-invalid={invalid} {...register('employeeTypeId')}>
+                <option value="">{employeeTypes.isPending ? 'Loading…' : 'Choose…'}</option>
+                {employeeTypes.data?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </Select>
+            )}
+          </Field>
         </div>
 
         <button type="button" onClick={() => setMore((m) => !m)} aria-expanded={more}
@@ -183,13 +201,6 @@ export function QuickAddDialog({ open, onClose }: { open: boolean; onClose: () =
                   <Combobox id={id} value={field.value || null} onChange={field.onChange} invalid={invalid}
                     options={managers.data ?? []} placeholder="Search people" disabled={managers.isPending} />
                 )} />
-              )}
-            </Field>
-            <Field label="Employment type">
-              {({ id }) => (
-                <Select id={id} {...register('employmentType')}>
-                  {EMPLOYMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </Select>
               )}
             </Field>
             {canAssign && (
