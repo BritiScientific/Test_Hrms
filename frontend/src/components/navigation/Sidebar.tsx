@@ -92,7 +92,7 @@ function NavSection({ group, collapsed, onNavigate }: { group: NavGroup; collaps
               {({ isActive }) => (
                 <>
                   <item.icon className={cn('size-[18px] shrink-0', isActive ? 'text-primary' : 'text-slate-400 group-hover:text-slate-600')} aria-hidden />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
+                  {!collapsed && <span className="min-w-0 leading-snug">{item.label}</span>}
                 </>
               )}
             </NavLink>

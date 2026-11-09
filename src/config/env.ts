@@ -4,13 +4,31 @@ function required(name: string, fallback?: string): string {
   return v;
 }
 
-const NODE_ENV = process.env.NODE_ENV ?? 'development';
+/** Fails fast on a missing/empty password or database name. Never echoes the URL (it holds the password). */
+function validateDatabaseUrl(raw: string): string {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new Error('DATABASE_URL is not a valid URL (expected postgres://user:password@host:port/database)');
+  }
+  if (u.protocol !== 'postgres:' && u.protocol !== 'postgresql:') throw new Error('DATABASE_URL must use the postgres:// scheme');
+  if (!u.username) throw new Error('DATABASE_URL has no user');
+  if (!u.password) throw new Error('DATABASE_URL has an empty or missing password');
+  if (!u.hostname) throw new Error('DATABASE_URL has no host');
+  if (u.pathname.length <= 1) throw new Error('DATABASE_URL has no database name');
+  return raw;
+}
+
+const NODE_ENV =process.env.NODE_ENV ?? 'development';
 
 export const env = {
   NODE_ENV,
   PORT: Number(process.env.PORT ?? 4000),
   // Runtime connection MUST use the non-owner, NOBYPASSRLS role (hrms_app).
-  DATABASE_URL: required('DATABASE_URL', 'postgres://hrms_app:change_me_app@localhost:5432/hrms'),
+  // No fallback: a default password would let the API connect with credentials
+  // that are not in .env. Validated (user, password, database) before the pool exists.
+  DATABASE_URL: validateDatabaseUrl(required('DATABASE_URL')),
   JWT_SECRET: required('JWT_SECRET', NODE_ENV === 'production' ? undefined : 'dev-only-secret-change-me'),
   JWT_ISSUER: process.env.JWT_ISSUER ?? 'hrms-api',
   JWT_AUDIENCE: process.env.JWT_AUDIENCE ?? 'hrms-web',

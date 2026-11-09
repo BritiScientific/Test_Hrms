@@ -6,7 +6,7 @@ import { AppError } from '../shared/errors';
  * user perform this KIND of action?" — services still enforce data scope
  * (whose record) and workflow state (is this task mine and current).
  * Workflow task actions deliberately do NOT use this middleware: the required
- * permission comes from the workflow step (leave.approve, expense.approve, ...).
+ * permission comes from the workflow step (leave.request.approve, expense.approve, ...).
  */
 export function requirePermission(...codes: string[]): RequestHandler {
   if (!codes.length) throw new Error('requirePermission needs at least one code');

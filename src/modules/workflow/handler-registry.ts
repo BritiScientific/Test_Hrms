@@ -30,8 +30,10 @@ export interface WorkflowModuleHandler {
   onReturned(tx: Tx, inst: WorkflowInstanceRow, actorUserId: number): Promise<void>;
   /** Short summaries for the My Approvals inbox. */
   summarize?(tx: Tx, entityIds: number[]): Promise<Map<number, unknown>>;
-  /** Extra read access (e.g. HR with leave.view.all can see any history). */
+  /** Extra read access (e.g. HR with leave.request.view_all can see any history). */
   canViewAll?(auth: AuthContext): boolean;
+  /** Permission an action needs on top of the step's own (a module may separate approve from reject). */
+  actionPermission?(action: 'approve' | 'reject' | 'return'): string | undefined;
 }
 
 const handlers = new Map<string, WorkflowModuleHandler>();

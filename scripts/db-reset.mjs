@@ -93,6 +93,9 @@ try {
   console.log('- migrations');
   const files = readdirSync(join(root, 'db', 'migrations')).filter((f) => /^0*[1-9]\d*_.*\.sql$/.test(f)).sort();
   for (const f of files) await runFile(owner, f, read('db', 'migrations', f));
+  // Same bookkeeping as scripts/db-migrate.mjs, so db:migrate works after a reset.
+  await owner.query(`CREATE TABLE schema_migrations (filename text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`);
+  await owner.query(`INSERT INTO schema_migrations (filename) SELECT unnest($1::text[])`, [files]);
 
   if (seed) {
     console.log('- seed');

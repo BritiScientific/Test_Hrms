@@ -428,7 +428,7 @@ describe('M4 · roles, assignments and effective permissions', () => {
     expectStatus(r, 200);
     const emp = r.json.find((x: any) => x.name === 'Employee');
     assert.equal(emp.member_count, 8);
-    assert.equal(emp.permission_count, 3);
+    assert.equal(emp.permission_count, 6);
     assert.ok(emp.updated_at);
     const sys = await call('GET', '/roles?type=system', { token: tokens.asha });
     assert.deepEqual(sys.json.map((x: any) => x.name), ['Tenant Admin']);
@@ -514,7 +514,7 @@ describe('M4 · roles, assignments and effective permissions', () => {
     const sources = await call('GET', `/users/${uid.priya}/permissions?include=sources`, { token: tokens.asha });
     const plain = await call('GET', `/users/${uid.priya}/permissions`, { token: tokens.asha });
     assert.deepEqual(sources.json.map((p: any) => p.code).sort(), [...plain.json].sort());
-    const approve = sources.json.find((p: any) => p.code === 'leave.approve');
+    const approve = sources.json.find((p: any) => p.code === 'leave.request.approve');
     assert.deepEqual(approve.sources.map((s: any) => s.roleName).sort(), ['HR Admin', 'Manager']);
 
     // Priya's existing token gains the new access on her very next request…

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "HRMS — RBAC, Workflow & Leave",
-    "description": "End-to-end walkthrough of the multi-tenant HRMS API.\n\nRun the folders in order, or use the Collection Runner on the whole collection.\nReset the database first (npm run db:reset) — some requests are one-shot by design (a published workflow version, overlapping leave dates).\n\nTokens are captured automatically by the login requests in folder 1.",
+    "description": "End-to-end walkthrough of the multi-tenant HRMS API.\n\nRun the folders in order, or use the Collection Runner on the whole collection.\nReset the database first (npm run db:reset) — some requests are one-shot by design (a published workflow version, overlapping leave dates).\n\nTokens are captured automatically by the login requests in folder 1.\n\nLeave dates are relative to today (see the collection pre-request script). The walkthrough uses this year's Casual Leave balance from the seed, so run it before the middle of December, or run accrual for next year first.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -312,7 +312,7 @@
                 "value": "Bearer {{token_rahul}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/leave-balances/me?year=2026"
+            "url": "{{baseUrl}}/api/v1/leave/balances?year={{leave_year}}"
           },
           "event": [
             {
@@ -326,14 +326,15 @@
                   "  }",
                   "});",
                   "",
-                  "pm.test(\"20 available\", function () { if (pm.response.json()[0].available !== 20) throw new Error(\"expected 20\"); });"
+                  "var b = pm.response.json().items.filter(function (x) { return x.leaveTypeCode === \"CL\"; })[0];",
+                  "pm.test(\"12 Casual Leave available\", function () { if (b.available !== 12) throw new Error(JSON.stringify(b)); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "10. Apply for leave (5–9 Nov)",
+          "name": "10. Apply for leave (Thursday to Monday)",
           "request": {
             "method": "POST",
             "header": [
@@ -352,14 +353,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"leaveType\": \"annual\",\n  \"startDate\": \"2026-11-05\",\n  \"endDate\": \"2026-11-09\",\n  \"reason\": \"Personal work\"\n}",
+              "raw": "{\n  \"leaveTypeCode\": \"CL\",\n  \"startDate\": \"{{date_a_start}}\",\n  \"endDate\": \"{{date_a_end}}\",\n  \"reason\": \"Personal work\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "url": "{{baseUrl}}/api/v1/leave-requests"
+            "url": "{{baseUrl}}/api/v1/leave/requests"
           },
           "event": [
             {
@@ -375,12 +376,13 @@
                   "",
                   "var b = pm.response.json();",
                   "pm.collectionVariables.set(\"leave_id\", b.id);",
+                  "pm.collectionVariables.set(\"leave_days\", b.totalDays);",
                   "pm.collectionVariables.set(\"instance_id\", b.workflow.instance.id);",
-                  "pm.test(\"server computed 3 working days, not 5\", function () {",
-                  "  if (b.totalDays !== 3) throw new Error(\"expected 3, got \" + b.totalDays);",
+                  "pm.test(\"the server skips the weekend\", function () {",
+                  "  if (!(b.totalDays > 0 && b.totalDays < 5)) throw new Error(\"got \" + b.totalDays);",
                   "});",
                   "pm.test(\"first approver is the reporting manager\", function () {",
-                  "  if (b.workflow.tasks[0].assigned_to_name !== \"Krishna\") throw new Error(\"unexpected approver\");",
+                  "  if (b.workflow.tasks[0].assignedToName !== \"Krishna\") throw new Error(\"unexpected approver\");",
                   "});"
                 ]
               }
@@ -388,7 +390,7 @@
           ]
         },
         {
-          "name": "11. My balances after (3 reserved)",
+          "name": "11. My balances after (held, not deducted)",
           "request": {
             "method": "GET",
             "header": [
@@ -397,7 +399,7 @@
                 "value": "Bearer {{token_rahul}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/leave-balances/me?year=2026"
+            "url": "{{baseUrl}}/api/v1/leave/balances?year={{leave_year}}"
           },
           "event": [
             {
@@ -411,9 +413,10 @@
                   "  }",
                   "});",
                   "",
-                  "pm.test(\"3 pending, 17 available\", function () {",
-                  "  var b = pm.response.json()[0];",
-                  "  if (b.pending !== 3 || b.available !== 17) throw new Error(JSON.stringify(b));",
+                  "var b = pm.response.json().items.filter(function (x) { return x.leaveTypeCode === \"CL\"; })[0];",
+                  "var n = Number(pm.collectionVariables.get(\"leave_days\"));",
+                  "pm.test(\"held as pending, nothing used\", function () {",
+                  "  if (b.pending !== n || b.used !== 0 || b.available !== 12 - n) throw new Error(JSON.stringify(b));",
                   "});"
                 ]
               }
@@ -430,7 +433,7 @@
                 "value": "Bearer {{token_rahul}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/leave-requests?scope=own"
+            "url": "{{baseUrl}}/api/v1/leave/requests"
           },
           "event": [
             {
@@ -458,7 +461,7 @@
                 "value": "Bearer {{token_rahul}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/leave-requests/{{leave_id}}"
+            "url": "{{baseUrl}}/api/v1/leave/requests/{{leave_id}}"
           },
           "event": [
             {
@@ -492,14 +495,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"leaveType\": \"annual\",\n  \"startDate\": \"2026-12-01\",\n  \"endDate\": \"2026-12-02\",\n  \"totalDays\": 99\n}",
+              "raw": "{\n  \"leaveTypeCode\": \"CL\",\n  \"startDate\": \"{{date_b_start}}\",\n  \"endDate\": \"{{date_b_end}}\",\n  \"reason\": \"Trying it\",\n  \"totalDays\": 99\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "url": "{{baseUrl}}/api/v1/leave-requests"
+            "url": "{{baseUrl}}/api/v1/leave/requests"
           },
           "event": [
             {
@@ -518,7 +521,7 @@
           ]
         },
         {
-          "name": "15. Overlapping dates → 409",
+          "name": "15. Overlapping dates → 422",
           "request": {
             "method": "POST",
             "header": [
@@ -533,14 +536,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"leaveType\": \"annual\",\n  \"startDate\": \"2026-11-09\",\n  \"endDate\": \"2026-11-10\",\n  \"reason\": \"overlap\"\n}",
+              "raw": "{\n  \"leaveTypeCode\": \"CL\",\n  \"startDate\": \"{{date_a_end}}\",\n  \"endDate\": \"{{date_a_overlap}}\",\n  \"reason\": \"overlap\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "url": "{{baseUrl}}/api/v1/leave-requests"
+            "url": "{{baseUrl}}/api/v1/leave/requests"
           },
           "event": [
             {
@@ -548,11 +551,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"status is 409\", function () {",
-                  "  if (pm.response.code !== 409) {",
-                  "    throw new Error(\"Expected 409, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "pm.test(\"status is 422\", function () {",
+                  "  if (pm.response.code !== 422) {",
+                  "    throw new Error(\"Expected 422, got \" + pm.response.code + \": \" + pm.response.text());",
                   "  }",
-                  "});"
+                  "});",
+                  "",
+                  "pm.test(\"says why\", function () { if (pm.response.json().error.code !== \"OVERLAPPING_REQUEST\") throw new Error(pm.response.text()); });"
                 ]
               }
             }
@@ -898,7 +903,7 @@
                 "value": "Bearer {{token_rahul}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/leave-requests/{{leave_id}}"
+            "url": "{{baseUrl}}/api/v1/leave/requests/{{leave_id}}"
           },
           "event": [
             {
@@ -930,7 +935,7 @@
                 "value": "Bearer {{token_rahul}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/leave-balances/me?year=2026"
+            "url": "{{baseUrl}}/api/v1/leave/balances?year={{leave_year}}"
           },
           "event": [
             {
@@ -944,9 +949,10 @@
                   "  }",
                   "});",
                   "",
-                  "pm.test(\"used 3, pending 0\", function () {",
-                  "  var b = pm.response.json()[0];",
-                  "  if (b.used !== 3 || b.pending !== 0) throw new Error(JSON.stringify(b));",
+                  "var b = pm.response.json().items.filter(function (x) { return x.leaveTypeCode === \"CL\"; })[0];",
+                  "var n = Number(pm.collectionVariables.get(\"leave_days\"));",
+                  "pm.test(\"deducted once, on final approval\", function () {",
+                  "  if (b.used !== n || b.pending !== 0 || b.available !== 12 - n) throw new Error(JSON.stringify(b));",
                   "});"
                 ]
               }
@@ -992,7 +998,7 @@
       "name": "5 · Return, resubmit, reject",
       "item": [
         {
-          "name": "27. Rahul applies again (16–17 Nov)",
+          "name": "27. Rahul applies again",
           "request": {
             "method": "POST",
             "header": [
@@ -1007,14 +1013,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"leaveType\": \"annual\",\n  \"startDate\": \"2026-11-16\",\n  \"endDate\": \"2026-11-17\",\n  \"reason\": \"Family function\"\n}",
+              "raw": "{\n  \"leaveTypeCode\": \"CL\",\n  \"startDate\": \"{{date_b_start}}\",\n  \"endDate\": \"{{date_b_end}}\",\n  \"reason\": \"Family function\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "url": "{{baseUrl}}/api/v1/leave-requests"
+            "url": "{{baseUrl}}/api/v1/leave/requests"
           },
           "event": [
             {
@@ -1173,7 +1179,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/v1/leave-requests/{{leave_id2}}/resubmit"
+            "url": "{{baseUrl}}/api/v1/leave/requests/{{leave_id2}}/resubmit"
           },
           "event": [
             {
@@ -1267,7 +1273,7 @@
           ]
         },
         {
-          "name": "34. Reservation released",
+          "name": "34. Hold released",
           "request": {
             "method": "GET",
             "header": [
@@ -1276,7 +1282,7 @@
                 "value": "Bearer {{token_rahul}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/leave-balances/me?year=2026"
+            "url": "{{baseUrl}}/api/v1/leave/balances?year={{leave_year}}"
           },
           "event": [
             {
@@ -1290,9 +1296,10 @@
                   "  }",
                   "});",
                   "",
-                  "pm.test(\"pending back to 0\", function () {",
-                  "  var b = pm.response.json()[0];",
-                  "  if (b.pending !== 0 || b.used !== 3) throw new Error(JSON.stringify(b));",
+                  "var b = pm.response.json().items.filter(function (x) { return x.leaveTypeCode === \"CL\"; })[0];",
+                  "var n = Number(pm.collectionVariables.get(\"leave_days\"));",
+                  "pm.test(\"pending back to 0, used unchanged\", function () {",
+                  "  if (b.pending !== 0 || b.used !== n) throw new Error(JSON.stringify(b));",
                   "});"
                 ]
               }
@@ -1320,14 +1327,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"leaveType\": \"annual\",\n  \"startDate\": \"2026-11-19\",\n  \"endDate\": \"2026-11-19\",\n  \"reason\": \"Personal\"\n}",
+              "raw": "{\n  \"leaveTypeCode\": \"CL\",\n  \"startDate\": \"{{date_c}}\",\n  \"endDate\": \"{{date_c}}\",\n  \"reason\": \"Personal\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "url": "{{baseUrl}}/api/v1/leave-requests"
+            "url": "{{baseUrl}}/api/v1/leave/requests"
           },
           "event": [
             {
@@ -1344,7 +1351,7 @@
                   "var b = pm.response.json();",
                   "pm.collectionVariables.set(\"leave_hr_id\", b.id);",
                   "pm.test(\"goes to HIS manager, not himself\", function () {",
-                  "  if (b.workflow.tasks[0].assigned_to_name !== \"Vikram\") throw new Error(b.workflow.tasks[0].assigned_to_name);",
+                  "  if (b.workflow.tasks[0].assignedToName !== \"Vikram\") throw new Error(b.workflow.tasks[0].assignedToName);",
                   "});"
                 ]
               }
@@ -1508,7 +1515,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"permissions\": [\n    \"leave.view.all\",\n    \"leave.view.team\"\n  ]\n}",
+              "raw": "{\n  \"permissions\": [\n    \"leave.request.view_all\",\n    \"leave.request.view_team\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1600,8 +1607,8 @@
                   "  }",
                   "});",
                   "",
-                  "pm.test(\"gained leave.view.all\", function () {",
-                  "  if (pm.response.json().indexOf(\"leave.view.all\") === -1) throw new Error(\"role not applied\");",
+                  "pm.test(\"gained leave.request.view_all\", function () {",
+                  "  if (pm.response.json().indexOf(\"leave.request.view_all\") === -1) throw new Error(\"role not applied\");",
                   "});"
                 ]
               }
@@ -1652,7 +1659,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"permissions\": [\n    \"leave.approve\",\n    \"payroll.process\"\n  ]\n}",
+              "raw": "{\n  \"permissions\": [\n    \"leave.request.approve\",\n    \"payroll.process\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1815,7 +1822,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Leave Approval\",\n  \"steps\": [\n    {\n      \"name\": \"Manager Approval\",\n      \"approverType\": \"reporting_manager\",\n      \"requiredPermission\": \"leave.approve\",\n      \"onNoApprover\": \"fallback_role\",\n      \"fallbackRoleId\": \"{{role_hr_id}}\",\n      \"slaHours\": 48\n    },\n    {\n      \"name\": \"HR Approval\",\n      \"approverType\": \"role\",\n      \"approverRoleId\": \"{{role_hr_id}}\",\n      \"requiredPermission\": \"leave.approve\",\n      \"approvalMode\": \"any\",\n      \"condition\": {\n        \"field\": \"totalDays\",\n        \"op\": \"gt\",\n        \"value\": 2\n      },\n      \"slaHours\": 48\n    }\n  ]\n}",
+              "raw": "{\n  \"name\": \"Leave Approval\",\n  \"steps\": [\n    {\n      \"name\": \"Manager Approval\",\n      \"approverType\": \"reporting_manager\",\n      \"requiredPermission\": \"leave.request.approve\",\n      \"onNoApprover\": \"fallback_role\",\n      \"fallbackRoleId\": \"{{role_hr_id}}\",\n      \"slaHours\": 48\n    },\n    {\n      \"name\": \"HR Approval\",\n      \"approverType\": \"role\",\n      \"approverRoleId\": \"{{role_hr_id}}\",\n      \"requiredPermission\": \"leave.request.approve\",\n      \"approvalMode\": \"any\",\n      \"condition\": {\n        \"field\": \"totalDays\",\n        \"op\": \"gt\",\n        \"value\": 2\n      },\n      \"slaHours\": 48\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1921,14 +1928,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"leaveType\": \"annual\",\n  \"startDate\": \"2026-12-01\",\n  \"endDate\": \"2026-12-01\",\n  \"reason\": \"One day\"\n}",
+              "raw": "{\n  \"leaveTypeCode\": \"CL\",\n  \"startDate\": \"{{date_d}}\",\n  \"endDate\": \"{{date_d}}\",\n  \"reason\": \"One day\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "url": "{{baseUrl}}/api/v1/leave-requests"
+            "url": "{{baseUrl}}/api/v1/leave/requests"
           },
           "event": [
             {
@@ -2010,7 +2017,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"module\": \"leave\",\n  \"name\": \"Bad workflow\",\n  \"steps\": [\n    {\n      \"name\": \"Step\",\n      \"approverType\": \"reporting_manager\",\n      \"requiredPermission\": \"leave.approve\",\n      \"condition\": {\n        \"field\": \"salary\",\n        \"op\": \"gt\",\n        \"value\": 1\n      }\n    }\n  ]\n}",
+              "raw": "{\n  \"module\": \"leave\",\n  \"name\": \"Bad workflow\",\n  \"steps\": [\n    {\n      \"name\": \"Step\",\n      \"approverType\": \"reporting_manager\",\n      \"requiredPermission\": \"leave.request.approve\",\n      \"condition\": {\n        \"field\": \"salary\",\n        \"op\": \"gt\",\n        \"value\": 1\n      }\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2045,7 +2052,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/v1/leave-requests"
+            "url": "{{baseUrl}}/api/v1/leave/requests"
           },
           "event": [
             {
@@ -2073,7 +2080,7 @@
                 "value": "Bearer {{token_bogus}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/leave-requests"
+            "url": "{{baseUrl}}/api/v1/leave/requests"
           },
           "event": [
             {
@@ -2129,7 +2136,7 @@
                 "value": "Bearer {{token_meera}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/leave-requests?scope=all"
+            "url": "{{baseUrl}}/api/v1/leave/admin/requests"
           },
           "event": [
             {
@@ -2144,7 +2151,7 @@
                   "});",
                   "",
                   "pm.test(\"no rows from tenant 1\", function () {",
-                  "  if (pm.response.json().length !== 0) throw new Error(\"cross-tenant leak\");",
+                  "  if (pm.response.json().items.length !== 0) throw new Error(\"cross-tenant leak\");",
                   "});"
                 ]
               }
@@ -2161,7 +2168,7 @@
                 "value": "Bearer {{token_meera}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/leave-requests/{{leave_id}}"
+            "url": "{{baseUrl}}/api/v1/leave/requests/{{leave_id}}"
           },
           "event": [
             {
@@ -2195,14 +2202,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"leaveType\": \"annual\",,}",
+              "raw": "{\"leaveTypeCode\": \"CL\",,}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "url": "{{baseUrl}}/api/v1/leave-requests"
+            "url": "{{baseUrl}}/api/v1/leave/requests"
           },
           "event": [
             {
@@ -3838,6 +3845,827 @@
           ]
         }
       ]
+    },
+    {
+      "name": "13 · Leave administration",
+      "description": "Dashboards, configuration, balance jobs and reports. Run after the walkthrough above.",
+      "item": [
+        {
+          "name": "My leave dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/dashboard"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"has totals\", function () { if (!pm.response.json().totals) throw new Error(\"no totals\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Leave types I can apply for",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/types"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Preview an application (writes nothing)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/requests/preview",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leaveTypeCode\": \"SL\",\n  \"startDate\": \"{{date_d}}\",\n  \"endDate\": \"{{date_d}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"computes days\", function () { if (!(pm.response.json().totalDays >= 0)) throw new Error(pm.response.text()); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My holiday calendar",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/calendar?from={{leave_year}}-01-01&to={{leave_year}}-12-31"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Balance statement",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/balances/transactions?year={{leave_year}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Employee cannot read configuration → 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rahul}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/config/types"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", function () {",
+                  "  if (pm.response.code !== 403) {",
+                  "    throw new Error(\"Expected 403, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Team dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/team/dashboard"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pending approvals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/team/approvals/pending"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Team requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/team/requests"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Approval history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_krishna}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/team/approvals/history"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"my decisions are listed\", function () { if (!pm.response.json().items.length) throw new Error(\"empty\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "HR dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/admin/dashboard"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "All requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/admin/requests?limit=50"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Organization calendar",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/admin/calendar?from={{leave_year}}-01-01&to={{leave_year}}-12-31"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Report: employee balances",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/admin/reports/balance?year={{leave_year}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ledger reconciliation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/admin/reconciliation"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"balances match the ledger\", function () { if (!pm.response.json().inBalance) throw new Error(pm.response.text()); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create a leave type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/config/types",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"STUDY\",\n  \"name\": \"Study Leave\",\n  \"category\": \"other\",\n  \"maxConsecutiveDays\": 5,\n  \"minNoticeDays\": 7\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "  if (pm.response.code !== 201) {",
+                  "    throw new Error(\"Expected 201, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"leave_type_new_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deactivate it (there is no delete)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/config/types/{{leave_type_new_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"inactive\", function () { if (pm.response.json().isActive !== false) throw new Error(\"still active\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Leave policies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/config/policies"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entitlements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/config/entitlements"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Holiday calendars",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/config/holiday-calendars?year={{leave_year}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Accrual rules",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/config/accrual-rules"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Carry-forward rules",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/config/carry-forward-rules"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Comp off rules",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/config/comp-off-rules"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Accrual preview (dry run, the default)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_suresh}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/admin/jobs/accrual",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "  if (pm.response.code !== 200) {",
+                  "    throw new Error(\"Expected 200, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test(\"dry run\", function () { if (pm.response.json().dryRun !== true) throw new Error(\"not a dry run\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Other tenant cannot edit this tenant's type → 404",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_meera}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/leave/config/types/{{leave_type_new_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Taken over\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () {",
+                  "  if (pm.response.code !== 404) {",
+                  "    throw new Error(\"Expected 404, got \" + pm.response.code + \": \" + pm.response.text());",
+                  "  }",
+                  "});",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -3968,6 +4796,36 @@
     {
       "key": "token_divya",
       "value": ""
+    },
+    {
+      "key": "leave_days",
+      "value": ""
+    },
+    {
+      "key": "leave_type_new_id",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Leave dates relative to today: a Thursday at least a week ahead, then later dates from it.",
+          "var d = new Date(); d.setDate(d.getDate() + 7);",
+          "while (d.getDay() !== 4) d.setDate(d.getDate() + 1);",
+          "var at = function (n) { var x = new Date(d); x.setDate(x.getDate() + n); return x.getFullYear() + \"-\" + String(x.getMonth() + 1).padStart(2, \"0\") + \"-\" + String(x.getDate()).padStart(2, \"0\"); };",
+          "pm.variables.set(\"leave_year\", new Date().getFullYear());",
+          "pm.variables.set(\"date_a_start\", at(0));      // Thursday",
+          "pm.variables.set(\"date_a_end\", at(4));        // the Monday after: 5 calendar days, 3 working days",
+          "pm.variables.set(\"date_a_overlap\", at(5));",
+          "pm.variables.set(\"date_b_start\", at(11));",
+          "pm.variables.set(\"date_b_end\", at(12));",
+          "pm.variables.set(\"date_c\", at(14));",
+          "pm.variables.set(\"date_d\", at(18));"
+        ]
+      }
     }
   ]
 }

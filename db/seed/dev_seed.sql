@@ -15,9 +15,18 @@ DECLARE
   r_emp bigint; r_mgr bigint; r_hr bigint; r_admin bigint;
   r2_emp bigint; r2_hr bigint; r2_admin bigint;
   d_eng bigint; d_hr bigint;
-  lt_annual bigint; lt_sick bigint; lt2_annual bigint;
-  wf bigint; wf2 bigint;
+  v_year int := extract(year FROM now())::int;
+  v_month int := extract(month FROM now())::int;
+  v_jan1 date := make_date(extract(year FROM now())::int, 1, 1);
+  lt_cl bigint; lt_sl bigint; lt_el bigint; lt_lop bigint; lt_co bigint; lt_ml bigint; lt_pl bigint; lt_bl bigint;
+  lt2_al bigint;
+  pol_perm bigint; pol_contract bigint; pol2 bigint;
+  ent bigint; ent_el bigint;
+  cal bigint;
+  rule record;
+  wf bigint; wf2 bigint; wfc bigint; wfc2 bigint;
   b bigint;
+  m int;
   emp record;
 BEGIN
   -- ABC has completed onboarding; XYZ has not (its admin, Meera, lands in the wizard).
@@ -104,21 +113,33 @@ BEGIN
     VALUES (t2, 'Tenant Admin', 'Full access', true) RETURNING id INTO r2_admin;
 
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
-  SELECT t1, r_emp, id FROM permissions WHERE code IN ('leave.create', 'leave.view.own', 'leave.withdraw');
+  SELECT t1, r_emp, id FROM permissions WHERE code IN (
+    'leave.dashboard.view_self', 'leave.request.create_self', 'leave.request.view_self',
+    'leave.request.cancel_self', 'leave.balance.view_self', 'leave.calendar.view_self');
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
-  SELECT t1, r_mgr, id FROM permissions WHERE code IN ('leave.view.team', 'leave.approve', 'workflow.delegate');
+  SELECT t1, r_mgr, id FROM permissions WHERE code IN (
+    'leave.dashboard.view_team', 'leave.request.view_team', 'leave.request.approve', 'leave.request.reject',
+    'leave.request.return', 'leave.approval_history.view_team', 'workflow.delegate');
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
   SELECT t1, r_hr, id FROM permissions WHERE code IN (
-    'leave.view.all', 'leave.approve', 'leave.balance.manage', 'leave.type.manage',
+    'leave.dashboard.view_all', 'leave.request.view_all', 'leave.request.manage', 'leave.calendar.view_all',
+    'leave.reports.view', 'leave.configuration.view', 'leave.configuration.manage', 'leave.policy.assign',
+    'leave.balance.adjust', 'leave.request.approve', 'leave.request.reject', 'leave.request.return',
+    'leave.approval_history.view_team',
     'workflow.view', 'workflow.configure', 'workflow.delegate',
     'roles.view', 'roles.manage', 'roles.assign', 'employee.view', 'employee.create', 'employee.update',
     'organization.view', 'organization.settings.view', 'organization.chart.view');
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
   SELECT t1, r_admin, id FROM permissions;
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
-  SELECT t2, r2_emp, id FROM permissions WHERE code IN ('leave.create', 'leave.view.own', 'leave.withdraw');
+  SELECT t2, r2_emp, id FROM permissions WHERE code IN (
+    'leave.dashboard.view_self', 'leave.request.create_self', 'leave.request.view_self',
+    'leave.request.cancel_self', 'leave.balance.view_self', 'leave.calendar.view_self');
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
-  SELECT t2, r2_hr, id FROM permissions WHERE code IN ('leave.view.all', 'leave.approve', 'workflow.configure', 'roles.manage', 'roles.assign', 'roles.view');
+  SELECT t2, r2_hr, id FROM permissions WHERE code IN (
+    'leave.dashboard.view_all', 'leave.request.view_all', 'leave.calendar.view_all', 'leave.reports.view',
+    'leave.request.approve', 'leave.request.reject', 'leave.request.return', 'leave.approval_history.view_team',
+    'workflow.configure', 'roles.manage', 'roles.assign', 'roles.view');
   INSERT INTO role_permissions (tenant_id, role_id, permission_id)
   SELECT t2, r2_admin, id FROM permissions;
 
@@ -141,19 +162,112 @@ BEGIN
   INSERT INTO user_roles (tenant_id, user_id, role_id, effective_from) VALUES
     (t1, u_kiran, r_emp, '2024-01-01');
 
-  -- Leave types, holiday, balances
-  INSERT INTO leave_types (tenant_id, code, name) VALUES (t1, 'annual', 'Annual Leave') RETURNING id INTO lt_annual;
-  INSERT INTO leave_types (tenant_id, code, name) VALUES (t1, 'sick', 'Sick Leave') RETURNING id INTO lt_sick;
-  INSERT INTO leave_types (tenant_id, code, name) VALUES (t2, 'annual', 'Annual Leave') RETURNING id INTO lt2_annual;
-  INSERT INTO holidays (tenant_id, holiday_date, name) VALUES (t1, '2026-11-24', 'Company Holiday');
+  -- ---------------------------------------------------- Leave configuration --
+  -- Sample data for development. Real tenants configure all of this themselves.
+  INSERT INTO leave_types (tenant_id, code, name, category, is_paid, allow_half_day, requires_attachment,
+                           allow_backdated, max_backdated_days, max_consecutive_days, min_notice_days, include_non_working_days)
+  VALUES (t1, 'CL', 'Casual Leave', 'casual', true, true, false, false, NULL, 5, 0, false) RETURNING id INTO lt_cl;
+  INSERT INTO leave_types (tenant_id, code, name, category, is_paid, allow_half_day, requires_attachment,
+                           allow_backdated, max_backdated_days, max_consecutive_days, min_notice_days, include_non_working_days)
+  VALUES (t1, 'SL', 'Sick Leave', 'sick', true, true, false, true, 7, NULL, 0, false) RETURNING id INTO lt_sl;
+  INSERT INTO leave_types (tenant_id, code, name, category, is_paid, allow_half_day, requires_attachment,
+                           allow_backdated, max_backdated_days, max_consecutive_days, min_notice_days, include_non_working_days)
+  VALUES (t1, 'EL', 'Earned Leave', 'earned', true, true, false, false, NULL, 15, 3, false) RETURNING id INTO lt_el;
+  INSERT INTO leave_types (tenant_id, code, name, category, is_paid, allow_half_day, requires_attachment,
+                           allow_backdated, max_backdated_days, max_consecutive_days, min_notice_days, include_non_working_days)
+  VALUES (t1, 'LOP', 'Loss of Pay', 'loss_of_pay', false, true, false, false, NULL, NULL, 0, false) RETURNING id INTO lt_lop;
+  INSERT INTO leave_types (tenant_id, code, name, category, is_paid, allow_half_day, requires_attachment,
+                           allow_backdated, max_backdated_days, max_consecutive_days, min_notice_days, include_non_working_days)
+  VALUES (t1, 'CO', 'Compensatory Off', 'comp_off', true, true, false, false, NULL, NULL, 0, false) RETURNING id INTO lt_co;
+  INSERT INTO leave_types (tenant_id, code, name, category, is_paid, allow_half_day, requires_attachment,
+                           allow_backdated, max_backdated_days, max_consecutive_days, min_notice_days, include_non_working_days)
+  VALUES (t1, 'ML', 'Maternity Leave', 'maternity', true, false, true, false, NULL, 182, 14, true) RETURNING id INTO lt_ml;
+  INSERT INTO leave_types (tenant_id, code, name, category, is_paid, allow_half_day, requires_attachment,
+                           allow_backdated, max_backdated_days, max_consecutive_days, min_notice_days, include_non_working_days)
+  VALUES (t1, 'PL', 'Paternity Leave', 'paternity', true, false, false, false, NULL, 5, 3, false) RETURNING id INTO lt_pl;
+  INSERT INTO leave_types (tenant_id, code, name, category, is_paid, allow_half_day, requires_attachment,
+                           allow_backdated, max_backdated_days, max_consecutive_days, min_notice_days, include_non_working_days)
+  VALUES (t1, 'BL', 'Bereavement Leave', 'bereavement', true, false, false, true, 7, 3, 0, false) RETURNING id INTO lt_bl;
 
-  FOR emp IN SELECT tenant_id, id FROM employees LOOP
-    INSERT INTO leave_balances (tenant_id, employee_id, leave_type_id, period_year)
-    VALUES (emp.tenant_id, emp.id,
-            CASE WHEN emp.tenant_id = t1 THEN lt_annual ELSE lt2_annual END, 2026)
-    RETURNING id INTO b;
-    INSERT INTO leave_balance_transactions (tenant_id, balance_id, txn_type, allocated_delta, note)
-    VALUES (emp.tenant_id, b, 'allocation', 20, 'Annual allocation 2026');
+  INSERT INTO leave_policies (tenant_id, code, name, description, effective_from, status, is_default, created_by)
+  VALUES (t1, 'PERMANENT', 'Permanent Employee Policy', 'Default policy for permanent staff', v_jan1, 'active', true, u_asha)
+  RETURNING id INTO pol_perm;
+  INSERT INTO leave_policies (tenant_id, code, name, description, effective_from, status, created_by)
+  VALUES (t1, 'CONTRACT', 'Contract Employee Policy', 'Fixed-term contractors', v_jan1, 'active', u_asha)
+  RETURNING id INTO pol_contract;
+
+  INSERT INTO leave_policy_entitlements (tenant_id, policy_id, leave_type_id, annual_entitlement, allow_negative_balance,
+                                         allow_carry_forward, allow_encashment)
+  VALUES (t1, pol_perm, lt_el, 18, false, true, true) RETURNING id INTO ent_el;
+  INSERT INTO leave_policy_entitlements (tenant_id, policy_id, leave_type_id, annual_entitlement, allow_negative_balance) VALUES
+    (t1, pol_perm, lt_lop, 0, true),
+    (t1, pol_perm, lt_co, 0, false),
+    (t1, pol_perm, lt_ml, 182, false),
+    (t1, pol_perm, lt_pl, 5, false),
+    (t1, pol_perm, lt_bl, 3, false),
+    (t1, pol_contract, lt_lop, 0, true);
+  INSERT INTO leave_policy_entitlements (tenant_id, policy_id, leave_type_id, annual_entitlement)
+  VALUES (t1, pol_perm, lt_cl, 12) RETURNING id INTO ent;
+  INSERT INTO leave_accrual_rules (tenant_id, policy_entitlement_id, accrual_frequency, accrual_amount, effective_from, status)
+  VALUES (t1, ent, 'annual', 12, v_jan1, 'active');
+  INSERT INTO leave_policy_entitlements (tenant_id, policy_id, leave_type_id, annual_entitlement)
+  VALUES (t1, pol_perm, lt_sl, 12) RETURNING id INTO ent;
+  INSERT INTO leave_accrual_rules (tenant_id, policy_entitlement_id, accrual_frequency, accrual_amount, effective_from, status)
+  VALUES (t1, ent, 'annual', 12, v_jan1, 'active');
+  INSERT INTO leave_accrual_rules (tenant_id, policy_entitlement_id, accrual_frequency, accrual_amount, maximum_balance, effective_from, status)
+  VALUES (t1, ent_el, 'monthly', 1.5, 45, v_jan1, 'active');
+  INSERT INTO leave_carry_forward_rules (tenant_id, policy_entitlement_id, maximum_carry_forward, maximum_balance,
+                                         expiry_enabled, expiry_after_months, encashment_allowed, effective_from, status)
+  VALUES (t1, ent_el, 15, 45, true, 3, true, v_jan1, 'active');
+  INSERT INTO leave_comp_off_rules (tenant_id, leave_type_id, minimum_work_hours, earned_days, eligible_work_day_type,
+                                    expiry_enabled, expiry_after_days, maximum_balance, effective_from)
+  VALUES (t1, lt_co, 8, 1, 'non_working', true, 60, 10, v_jan1);
+
+  INSERT INTO leave_holiday_calendars (tenant_id, code, name, calendar_year, effective_from, status, is_default, created_by)
+  VALUES (t1, 'INDIA', 'India Holidays', v_year, v_jan1, 'active', true, u_asha) RETURNING id INTO cal;
+  INSERT INTO leave_holidays (tenant_id, calendar_id, name, holiday_date, holiday_type, is_optional) VALUES
+    (t1, cal, 'New Year''s Day',   make_date(v_year, 1, 1),   'optional',     true),
+    (t1, cal, 'Republic Day',      make_date(v_year, 1, 26),  'national',     false),
+    (t1, cal, 'Independence Day',  make_date(v_year, 8, 15),  'national',     false),
+    (t1, cal, 'Gandhi Jayanti',    make_date(v_year, 10, 2),  'national',     false),
+    (t1, cal, 'Company Foundation Day', make_date(v_year, 11, 24), 'organization', false),
+    (t1, cal, 'Christmas Day',     make_date(v_year, 12, 25), 'festival',     false);
+
+  INSERT INTO leave_types (tenant_id, code, name, category) VALUES (t2, 'AL', 'Annual Leave', 'earned') RETURNING id INTO lt2_al;
+  INSERT INTO leave_policies (tenant_id, code, name, effective_from, status, is_default, created_by)
+  VALUES (t2, 'STANDARD', 'Standard Policy', v_jan1, 'active', true, u_meera) RETURNING id INTO pol2;
+  INSERT INTO leave_policy_entitlements (tenant_id, policy_id, leave_type_id, annual_entitlement)
+  VALUES (t2, pol2, lt2_al, 20) RETURNING id INTO ent;
+  INSERT INTO leave_accrual_rules (tenant_id, policy_entitlement_id, accrual_frequency, accrual_amount, effective_from, status)
+  VALUES (t2, ent, 'annual', 20, v_jan1, 'active');
+
+  -- Credit this year so far, exactly as the accrual job would have done: the same
+  -- posting rows and idempotency keys, so running the job afterwards adds nothing.
+  FOR rule IN
+    SELECT r.tenant_id, r.id, r.accrual_frequency, r.accrual_amount, en.leave_type_id
+      FROM leave_accrual_rules r
+      JOIN leave_policy_entitlements en ON en.tenant_id = r.tenant_id AND en.id = r.policy_entitlement_id
+  LOOP
+    FOR emp IN SELECT id FROM employees WHERE tenant_id = rule.tenant_id LOOP
+      INSERT INTO leave_balances (tenant_id, employee_id, leave_type_id, leave_year)
+      VALUES (rule.tenant_id, emp.id, rule.leave_type_id, v_year)
+      RETURNING id INTO b;
+      IF rule.accrual_frequency = 'annual' THEN
+        INSERT INTO leave_accrual_postings (tenant_id, accrual_rule_id, employee_id, period_key, scheduled_days, credited_days)
+        VALUES (rule.tenant_id, rule.id, emp.id, v_year::text, rule.accrual_amount, rule.accrual_amount);
+        INSERT INTO leave_balance_transactions (tenant_id, balance_id, txn_type, days, effective_date, idempotency_key, note)
+        VALUES (rule.tenant_id, b, 'ACCRUAL', rule.accrual_amount, v_jan1,
+                format('accrual:%s:%s:%s', rule.id, emp.id, v_year), 'Annual allocation');
+      ELSE
+        FOR m IN 1..v_month LOOP
+          INSERT INTO leave_accrual_postings (tenant_id, accrual_rule_id, employee_id, period_key, scheduled_days, credited_days)
+          VALUES (rule.tenant_id, rule.id, emp.id, format('%s-%s', v_year, lpad(m::text, 2, '0')), rule.accrual_amount, rule.accrual_amount);
+          INSERT INTO leave_balance_transactions (tenant_id, balance_id, txn_type, days, effective_date, idempotency_key, note)
+          VALUES (rule.tenant_id, b, 'ACCRUAL', rule.accrual_amount, make_date(v_year, m, 1),
+                  format('accrual:%s:%s:%s-%s', rule.id, emp.id, v_year, lpad(m::text, 2, '0')), 'Monthly accrual');
+        END LOOP;
+      END IF;
+    END LOOP;
   END LOOP;
 
   -- Leave workflow v1 (tenant 1): Manager -> HR Admin
@@ -161,10 +275,10 @@ BEGIN
     VALUES (t1, 'leave', 'Leave Approval', 1, u_asha) RETURNING id INTO wf;
   INSERT INTO workflow_steps (tenant_id, workflow_id, step_order, name, approver_type,
                               required_permission_code, on_no_approver, fallback_role_id, sla_hours)
-    VALUES (t1, wf, 1, 'Manager Approval', 'reporting_manager', 'leave.approve', 'fallback_role', r_hr, 48);
+    VALUES (t1, wf, 1, 'Manager Approval', 'reporting_manager', 'leave.request.approve', 'fallback_role', r_hr, 48);
   INSERT INTO workflow_steps (tenant_id, workflow_id, step_order, name, approver_type, approver_role_id,
                               required_permission_code, approval_mode, sla_hours)
-    VALUES (t1, wf, 2, 'HR Approval', 'role', r_hr, 'leave.approve', 'any', 48);
+    VALUES (t1, wf, 2, 'HR Approval', 'role', r_hr, 'leave.request.approve', 'any', 48);
   UPDATE workflow_definitions SET status = 'published', published_by = u_asha, published_at = now()
     WHERE tenant_id = t1 AND id = wf;
 
@@ -173,7 +287,27 @@ BEGIN
     VALUES (t2, 'leave', 'Leave Approval', 1, u_meera) RETURNING id INTO wf2;
   INSERT INTO workflow_steps (tenant_id, workflow_id, step_order, name, approver_type, approver_role_id,
                               required_permission_code)
-    VALUES (t2, wf2, 1, 'HR Approval', 'role', r2_hr, 'leave.approve');
+    VALUES (t2, wf2, 1, 'HR Approval', 'role', r2_hr, 'leave.request.approve');
   UPDATE workflow_definitions SET status = 'published', published_by = u_meera, published_at = now()
     WHERE tenant_id = t2 AND id = wf2;
+
+  -- Comp off claims: same chain as leave (tenant 1: Manager -> HR; tenant 2: HR)
+  INSERT INTO workflow_definitions (tenant_id, module, name, version, created_by)
+    VALUES (t1, 'comp_off', 'Comp Off Approval', 1, u_asha) RETURNING id INTO wfc;
+  INSERT INTO workflow_steps (tenant_id, workflow_id, step_order, name, approver_type,
+                              required_permission_code, on_no_approver, fallback_role_id, sla_hours)
+    VALUES (t1, wfc, 1, 'Manager Approval', 'reporting_manager', 'leave.request.approve', 'fallback_role', r_hr, 48);
+  INSERT INTO workflow_steps (tenant_id, workflow_id, step_order, name, approver_type, approver_role_id,
+                              required_permission_code, approval_mode, sla_hours)
+    VALUES (t1, wfc, 2, 'HR Approval', 'role', r_hr, 'leave.request.approve', 'any', 48);
+  UPDATE workflow_definitions SET status = 'published', published_by = u_asha, published_at = now()
+    WHERE tenant_id = t1 AND id = wfc;
+
+  INSERT INTO workflow_definitions (tenant_id, module, name, version, created_by)
+    VALUES (t2, 'comp_off', 'Comp Off Approval', 1, u_meera) RETURNING id INTO wfc2;
+  INSERT INTO workflow_steps (tenant_id, workflow_id, step_order, name, approver_type, approver_role_id,
+                              required_permission_code)
+    VALUES (t2, wfc2, 1, 'HR Approval', 'role', r2_hr, 'leave.request.approve');
+  UPDATE workflow_definitions SET status = 'published', published_by = u_meera, published_at = now()
+    WHERE tenant_id = t2 AND id = wfc2;
 END $$;

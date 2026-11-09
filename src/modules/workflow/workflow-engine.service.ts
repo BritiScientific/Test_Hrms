@@ -199,13 +199,22 @@ export async function actOnTask(
     throw forbidden('SELF_APPROVAL', 'You cannot act on your own request');
   }
 
-  // 4. Permission from the STEP (not a hard-coded leave.approve), re-read inside this tx.
+  // 4. Permission from the STEP (not hard-coded per module), re-read inside this tx.
   const code = step.required_permission_code;
   if (!(await userHasPermission(tx, auth.userId, code))) {
     throw forbidden('MISSING_PERMISSION', `This step requires ${code}`);
   }
   if (onBehalfOf && !(await userHasPermission(tx, onBehalfOf, code))) {
     throw forbidden('DELEGATOR_LOST_PERMISSION', `The delegating approver no longer holds ${code}`);
+  }
+  const actionCode = getWorkflowHandler(inst.module).actionPermission?.(action);
+  if (actionCode) {
+    if (!(await userHasPermission(tx, auth.userId, actionCode))) {
+      throw forbidden('MISSING_PERMISSION', `This action requires ${actionCode}`);
+    }
+    if (onBehalfOf && !(await userHasPermission(tx, onBehalfOf, actionCode))) {
+      throw forbidden('DELEGATOR_LOST_PERMISSION', `The delegating approver no longer holds ${actionCode}`);
+    }
   }
 
   // 5. Step rules.

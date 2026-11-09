@@ -26,8 +26,13 @@ npm run web:dev          # http://localhost:5173 — proxies /api to :4000
 
 `npm run db:reset` is a Node script — it works on Windows, macOS and Linux and needs no `psql`.
 (`npm run db:reset:bash` is the same thing via psql, if you prefer.)
-Verify with `npm run typecheck` and `npm test` (59 integration tests against the real database,
-run one file at a time because each resets the database). Frontend: `npm run web:test` (Vitest) and,
+**Upgrading an existing database?** Use `npm run db:migrate`, not `db:reset`: it applies new migrations and keeps
+your data. Migrations `011`–`014` delete the old leave data, so read
+[docs/leave-management.md](docs/leave-management.md) first.
+
+Verify with `npm run typecheck` and `npm test` (integration tests against the real database, run one file at a
+time). **`npm test` and `db:reset` drop the database named in `DB_NAME`**: point them at a throwaway database
+(`DB_NAME`, `DATABASE_URL`, `OUTBOX_DATABASE_URL`, `TEST_ADMIN_DATABASE_URL`), never at one you need. Frontend: `npm run web:test` (Vitest) and,
 with both servers running on a freshly reset database, `npm --prefix frontend run test:e2e`
 (Playwright: user flows plus every main screen at 320–2560 px checked for horizontal overflow;
 screenshots land in `frontend/e2e/screenshots/`).
@@ -49,10 +54,10 @@ XYZ has **not** finished onboarding, so she lands in the setup wizard), `arjun@x
 ```bash
 TOKEN=$(curl -s localhost:4000/api/v1/auth/login -H 'content-type: application/json' \
   -d '{"email":"rahul@abc.test","password":"Passw0rd!"}' | jq -r .accessToken)
-curl -s localhost:4000/api/v1/leave-requests -H "authorization: Bearer $TOKEN" \
+curl -s localhost:4000/api/v1/leave/requests -H "authorization: Bearer $TOKEN" \
   -H 'content-type: application/json' -H "idempotency-key: $(uuidgen)" \
-  -d '{"leaveType":"annual","startDate":"2026-11-05","endDate":"2026-11-09","reason":"Personal work"}'
-# -> totalDays: 3 (server-computed), task assigned to Krishna
+  -d '{"leaveTypeCode":"CL","startDate":"2026-12-03","endDate":"2026-12-07","reason":"Personal work"}'
+# -> totalDays: 3 (server-computed, skips the weekend), task assigned to Krishna
 ```
 
 ## Tenant portal (frontend)
@@ -62,9 +67,13 @@ curl -s localhost:4000/api/v1/leave-requests -H "authorization: Bearer $TOKEN" \
 | Sign-in | `/login`, `/select-organization` (only for multi-organization accounts), `/activate?token=…`, `/session-expired`, `/unauthorized` |
 | Portal | `/dashboard` (only API-backed figures: pending approvals, members, roles, your permissions, setup progress, recent audit) |
 | Onboarding | `/onboarding?step=details\|address\|preferences\|branding\|review` |
+| Leave: employee | `/leave/dashboard`, `/leave/apply`, `/leave/my-requests?tab=balance\|requests`, `/leave/holidays` |
+| Leave: manager | `/leave/team/dashboard`, `/leave/team/requests?tab=pending\|all\|history` |
+| Leave: HR | `/leave/admin/dashboard`, `/leave/admin/requests`, `/leave/admin/calendar`, `/leave/admin/reports` |
+| Leave: configuration | `/leave/config/types`, `policies`, `holiday-calendars`, `workflows`, `accrual?tab=accrual\|carry\|expiry\|encashment`, `assignments` |
 | Settings (own sidebar + back arrow) | `/settings/organization/profile`, `/settings/organization/preferences`, `/settings/organization-chart`, `/settings/access/roles[/new\|/:id\|/:id/permissions]`, `/settings/access/permissions`, `/settings/access/assignments`, `/settings/access/users/:id/permissions`, `/settings/security` |
 
-* Future modules (employees, attendance, leave, payroll, recruitment, performance, training,
+* Future modules (attendance, payroll, recruitment, performance, training,
   reports) appear only under a collapsed **Coming later** group, disabled and labelled “Soon”.
 * Menus and route guards are built from `/me` permissions for UX only; every API call is
   authorized server-side.
@@ -158,24 +167,29 @@ stored in Postgres (`tenant_assets`, ≤512 KB, PNG/JPEG/WebP verified by magic 
 ## Layout
 
 ```
-db/migrations/000..005   roles, core, rbac, workflow, leave, RLS+grants
+db/migrations/000..005   roles, core, rbac, workflow, first leave implementation (removed by 011), RLS+grants
 db/migrations/006        auth_sessions (server-side sessions)
 db/migrations/007        organization profile/settings/logo/invitations/audit, organization.* permissions
 db/migrations/008        role re-activation audit action
 db/migrations/009        employee creation: profile fields, 'invited' memberships, employee invitations, employee audit
 db/migrations/010        organization.chart.view permission; reporting-cycle check covers the line's whole period
+db/migrations/011        DESTRUCTIVE: removes the first leave implementation and its data
+db/migrations/012..014   Leave Management: configuration, requests + ledger, permissions
+db/migrations/015        comp off claims approved through the workflow engine (module comp_off)
 db/seed/dev_seed.sql     two tenants, Rahul -> Krishna -> Suresh scenario
 src/config               env, pg pool + withTenantTx (tenant-local set_config, retry on 40001/40P01)
 src/middleware           authenticate (fresh permissions per request), requirePermission, errors
 src/modules/rbac         roles, grants, assignments (anti-escalation, lockout guard, audit)
 src/modules/workflow     engine, approver resolver, condition evaluator, definitions, delegations
-src/modules/leave        apply/resubmit/withdraw, day calculation, ledger-based balances, engine hooks
+src/modules/leave        requests, ledger, accrual, carry-forward, comp off, configuration, reports (docs/leave-management.md)
 src/modules/outbox       transactional outbox + SKIP LOCKED worker
 src/modules/auth         login, tenant selection/switch, sessions, logout, /me
 src/modules/organization profile, preferences, logo storage, onboarding status
 src/modules/onboarding   invitation activation (public) + provisioning (CLI/owner only)
 src/modules/employees    quick add (single transaction), HR edit, self-service profile, departments
 src/cli/tenant-cli.ts    platform provisioning CLI
+src/cli/leave-jobs.ts    scheduled leave jobs: accrual, expiry, carry-forward
+scripts/db-migrate.mjs   forward migrations with schema_migrations; dumps before destructive ones
 test/                    integration tests (service-level + HTTP-level portal tests)
 frontend/                React tenant portal (app/, layouts/, components/, modules/, services/)
 ```
@@ -217,12 +231,7 @@ frontend/                React tenant portal (app/, layouts/, components/, modul
 | GET, POST, DELETE | /workflows/delegations | workflow.delegate to create |
 | GET | /workflows/definitions[/:id] | workflow.view / configure |
 | POST, PUT, DELETE | /workflows/definitions[/:id], /:id/clone, /:id/validate, /:id/publish | workflow.configure |
-| POST | /leave-requests | leave.create (`Idempotency-Key` header supported) |
-| GET | /leave-requests?scope=own\|team\|all | leave.view.own / team / all |
-| GET | /leave-requests/:id | owner, team manager, approver, or view.all |
-| POST | /leave-requests/:id/resubmit, /:id/withdraw | owner (leave.create / leave.withdraw) |
-| GET | /leave-balances/me | leave.view.own |
-| POST | /leave-balances/allocations | leave.balance.manage |
+| | /leave/... | Leave Management: see [docs/leave-management.md](docs/leave-management.md#api) |
 
 ## Engine rules worth knowing
 
@@ -234,7 +243,7 @@ frontend/                React tenant portal (app/, layouts/, components/, modul
 * **Delegation** is checked at action time; the task stays with the real approver and the log
   records `actor_user_id` + `on_behalf_of_user_id`. Delegates see only *pending* delegated tasks.
 * **Conditions** are per step, data-only JSON (`all`/`any`/`not`, `eq…between…in`), validated at
-  publish against the module's declared context fields (`totalDays`, `leaveTypeCode` for leave).
+  publish against the module's declared context fields (for leave: days, type, category, employee category, department, manager).
 * **Versioning:** publishing archives the old version in the same transaction; running instances
   stay on the version they started with. DB triggers block edits to published versions.
 
@@ -247,10 +256,7 @@ frontend/                React tenant portal (app/, layouts/, components/, modul
 
 ## Known limits / next steps
 
-* Leave cannot span two leave years (calendar year); fiscal-year periods need a `leave_periods` table.
-* Two half-days on the same date are blocked by the overlap constraint.
-* Cancelling *approved* leave (`credit` ledger entry) and SLA escalation jobs are prepared in the
-  schema but have no endpoint/worker yet.
+* Leave Management's limits are listed in [docs/leave-management.md](docs/leave-management.md#known-limits).
 * Put helmet and a shared rate limiter in front of the API in production; consider RS256 for tokens.
 * No email delivery yet: admin activation links are printed by the CLI; employee links are shown to
   HR once in the portal. The `employee.created` outbox event is the hook for a future mailer.

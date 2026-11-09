@@ -1,6 +1,7 @@
 import {
-  BriefcaseBusiness, Building2, CalendarCheck, CalendarDays, ChartNoAxesCombined, ChartPie, GraduationCap, History,
-  IdCard, KeyRound, LayoutDashboard, Network, ShieldCheck, SlidersHorizontal, UserCog, Users, Wallet, type LucideIcon,
+  BriefcaseBusiness, Building2, CalendarCheck, CalendarDays, CalendarPlus, CalendarRange, ChartNoAxesCombined, ChartPie,
+  ClipboardList, FileBarChart, GitBranch, GraduationCap, History, IdCard, KeyRound, LayoutDashboard, ListChecks, Network,
+  Repeat, ScrollText, ShieldCheck, SlidersHorizontal, Tags, UserCog, Users, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { PERMS } from '@/app/providers/AuthProvider';
 
@@ -37,6 +38,42 @@ export const MAIN_NAV: NavGroup[] = [
     items: [{ label: 'Employees', to: '/employees', icon: Users, anyOf: ['employee.view'] }],
   },
   {
+    label: 'Leave Management',
+    items: [
+      { label: 'My Leave Dashboard', to: '/leave/dashboard', icon: LayoutDashboard, anyOf: PERMS.leaveMyDashboard, requiresEmployee: true },
+      { label: 'Apply for Leave', to: '/leave/apply', icon: CalendarPlus, anyOf: PERMS.leaveApply, requiresEmployee: true },
+      { label: 'My Leave Requests & Balance', to: '/leave/my-requests', icon: ClipboardList, anyOf: PERMS.leaveMyRequests, requiresEmployee: true },
+      { label: 'Holiday Calendar', to: '/leave/holidays', icon: CalendarDays, anyOf: PERMS.leaveHolidays, requiresEmployee: true },
+    ],
+  },
+  {
+    label: 'Leave Management · Team',
+    items: [
+      { label: 'Leave Dashboard', to: '/leave/team/dashboard', icon: LayoutDashboard, anyOf: PERMS.leaveTeamDashboard },
+      { label: 'Team Leave Requests & Approvals', to: '/leave/team/requests', icon: ListChecks, anyOf: PERMS.leaveTeamRequests },
+    ],
+  },
+  {
+    label: 'Leave Management · HR',
+    items: [
+      { label: 'Leave Dashboard', to: '/leave/admin/dashboard', icon: LayoutDashboard, anyOf: PERMS.leaveAdminDashboard },
+      { label: 'All Leave Requests', to: '/leave/admin/requests', icon: ClipboardList, anyOf: PERMS.leaveAllRequests },
+      { label: 'Leave Calendar', to: '/leave/admin/calendar', icon: CalendarRange, anyOf: PERMS.leaveAdminCalendar },
+      { label: 'Leave Reports', to: '/leave/admin/reports', icon: FileBarChart, anyOf: PERMS.leaveReports },
+    ],
+  },
+  {
+    label: 'Leave Configuration',
+    items: [
+      { label: 'Leave Types', to: '/leave/config/types', icon: Tags, anyOf: PERMS.leaveConfig },
+      { label: 'Leave Policies', to: '/leave/config/policies', icon: ScrollText, anyOf: PERMS.leaveConfig },
+      { label: 'Holiday Calendars', to: '/leave/config/holiday-calendars', icon: CalendarDays, anyOf: PERMS.leaveConfig },
+      { label: 'Approval Workflows', to: '/leave/config/workflows', icon: GitBranch, anyOf: PERMS.leaveWorkflows },
+      { label: 'Accrual & Carry Forward', to: '/leave/config/accrual', icon: Repeat, anyOf: PERMS.leaveConfig },
+      { label: 'Employee Leave Assignments', to: '/leave/config/assignments', icon: UserCog, anyOf: PERMS.leaveAssignments },
+    ],
+  },
+  {
     label: 'Administration',
     items: [
       { label: 'Organization', to: '/settings/organization/profile', icon: Building2, anyOf: PERMS.orgProfile },
@@ -51,7 +88,6 @@ export const MAIN_NAV: NavGroup[] = [
  */
 export const UPCOMING_MODULES: UpcomingItem[] = [
   { label: 'Attendance Management', icon: CalendarCheck },
-  { label: 'Leave Management', icon: CalendarDays },
   { label: 'Payroll Management', icon: Wallet },
   { label: 'Recruitment Management', icon: BriefcaseBusiness },
   { label: 'Performance Management', icon: ChartNoAxesCombined },
