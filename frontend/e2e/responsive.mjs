@@ -41,6 +41,22 @@ const SCREENS = [
   ['employee-quick-add', '/employees?new=1'],
   ['employee-detail', '/employees/5'],
   ['my-profile', '/my-profile'],
+  ['leave-dashboard', '/leave/dashboard'],
+  ['leave-apply', '/leave/apply'],
+  ['leave-my-requests', '/leave/my-requests'],
+  ['leave-holidays', '/leave/holidays'],
+  ['leave-team-dashboard', '/leave/team/dashboard'],
+  ['leave-team-requests', '/leave/team/requests'],
+  ['leave-admin-dashboard', '/leave/admin/dashboard'],
+  ['leave-admin-requests', '/leave/admin/requests'],
+  ['leave-admin-calendar', '/leave/admin/calendar'],
+  ['leave-admin-reports', '/leave/admin/reports'],
+  ['leave-config-types', '/leave/config/types'],
+  ['leave-config-policies', '/leave/config/policies'],
+  ['leave-config-calendars', '/leave/config/holiday-calendars'],
+  ['leave-config-workflows', '/leave/config/workflows'],
+  ['leave-config-accrual', '/leave/config/accrual'],
+  ['leave-config-assignments', '/leave/config/assignments'],
 ];
 const SHOT_WIDTHS = new Set([320, 768, 1440, 2560]);
 

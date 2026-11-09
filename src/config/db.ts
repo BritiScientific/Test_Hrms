@@ -25,6 +25,25 @@ pool.on('error', (err) => {
   console.error(JSON.stringify({ level: 'warn', msg: 'idle database connection lost', error: err.message }));
 });
 
+/**
+ * Startup gate: open a brand-new connection with the configured credentials and
+ * run SELECT 1. Throws on any failure (bad password, unknown database, server
+ * down). Only the error code/message is reported - never the connection string.
+ */
+export async function verifyDatabaseConnection(): Promise<void> {
+  const u = new URL(env.DATABASE_URL);
+  const client = new pg.Client({ connectionString: env.DATABASE_URL, connectionTimeoutMillis: 5_000 });
+  try {
+    await client.connect();
+    await client.query('SELECT 1');
+  } catch (err: any) {
+    const target = `${u.username}@${u.hostname}:${u.port || 5432}/${u.pathname.slice(1)}`;
+    throw new Error(`Database connection failed for ${target} [${err?.code ?? 'ERR'}]: ${err?.message || err?.code || 'unreachable'}`);
+  } finally {
+    await client.end().catch(() => undefined);
+  }
+}
+
 export type Tx = pg.PoolClient;
 
 const RETRYABLE = new Set(['40001', '40P01']); // serialization_failure, deadlock_detected

@@ -64,7 +64,7 @@ describe('formatting & helpers', () => {
   });
   it('orders permission groups by module', () => {
     const g = groupByModule([
-      { code: 'leave.create', module: 'leave', description: '' },
+      { code: 'leave.request.create_self', module: 'leave', description: '' },
       { code: 'organization.view', module: 'organization', description: '' },
     ]);
     expect(g.map((x) => x.label)).toEqual(['Organization', 'Leave']);

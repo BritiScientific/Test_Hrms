@@ -53,10 +53,11 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Do not broadcast a 401 as "session lost" (used by the initial /me probe). */
   silent401?: boolean;
+  headers?: Record<string, string>;
 }
 
 export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = { 'x-hrms-client': 'web', accept: 'application/json' };
+  const headers: Record<string, string> = { ...opts.headers, 'x-hrms-client': 'web', accept: 'application/json' };
   let body: BodyInit | undefined;
   if (opts.raw !== undefined) {
     body = opts.raw;

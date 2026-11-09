@@ -5,7 +5,7 @@ import { GuestOnly, RequireAuth, RequirePermission } from './guards';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { SettingsLayout } from '@/layouts/SettingsLayout';
 import { TenantLayout } from '@/layouts/TenantLayout';
-import { firstSettingsPath } from '@/components/navigation/nav-config';
+import { MAIN_NAV, firstSettingsPath, visibleGroups } from '@/components/navigation/nav-config';
 import { ErrorState } from '@/components/feedback/States';
 import UnauthorizedPage, { NotFoundPage } from '@/modules/auth/UnauthorizedPage';
 
@@ -28,6 +28,13 @@ function guarded(anyOf: readonly string[], load: () => Promise<{ default: Compon
 function SettingsIndex() {
   const { canAny } = useAuth();
   return <Navigate to={firstSettingsPath(canAny)} replace />;
+}
+
+/** /leave goes to the first leave screen this user can open. */
+function LeaveIndex() {
+  const { canAny, me } = useAuth();
+  const items = visibleGroups(MAIN_NAV, canAny, !!me?.employee).flatMap((g) => g.items).filter((i) => i.to.startsWith('/leave/'));
+  return <Navigate to={items[0]?.to ?? '/unauthorized'} replace />;
 }
 
 function RouteError() {
@@ -75,6 +82,47 @@ export const routes: RouteObject[] = [
                   { index: true, lazy: guarded(['employee.view'], () => import('@/modules/employees/EmployeesListPage')) },
                   // Own record is allowed by the API without employee.view; others need it.
                   { path: ':employeeId', handle: { crumb: 'Profile' }, lazy: page(() => import('@/modules/employees/EmployeeDetailPage')) },
+                ],
+              },
+              {
+                path: '/leave',
+                handle: { crumb: 'Leave Management' },
+                children: [
+                  { index: true, element: <LeaveIndex /> },
+                  { path: 'dashboard', handle: { crumb: 'My Leave Dashboard' }, lazy: guarded(PERMS.leaveMyDashboard, () => import('@/modules/leave/employee/MyLeaveDashboardPage')) },
+                  { path: 'apply', handle: { crumb: 'Apply for Leave' }, lazy: guarded(PERMS.leaveApply, () => import('@/modules/leave/employee/ApplyLeavePage')) },
+                  { path: 'my-requests', handle: { crumb: 'My Leave Requests & Balance' }, lazy: guarded(PERMS.leaveMyRequests, () => import('@/modules/leave/employee/MyRequestsBalancePage')) },
+                  { path: 'holidays', handle: { crumb: 'Holiday Calendar' }, lazy: guarded(PERMS.leaveHolidays, () => import('@/modules/leave/employee/HolidayCalendarPage')) },
+                  {
+                    path: 'team',
+                    handle: { crumb: 'Team' },
+                    children: [
+                      { path: 'dashboard', handle: { crumb: 'Leave Dashboard' }, lazy: guarded(PERMS.leaveTeamDashboard, () => import('@/modules/leave/manager/TeamDashboardPage')) },
+                      { path: 'requests', handle: { crumb: 'Team Leave Requests & Approvals' }, lazy: guarded(PERMS.leaveTeamRequests, () => import('@/modules/leave/manager/TeamRequestsPage')) },
+                    ],
+                  },
+                  {
+                    path: 'admin',
+                    handle: { crumb: 'HR' },
+                    children: [
+                      { path: 'dashboard', handle: { crumb: 'Leave Dashboard' }, lazy: guarded(PERMS.leaveAdminDashboard, () => import('@/modules/leave/admin/AdminDashboardPage')) },
+                      { path: 'requests', handle: { crumb: 'All Leave Requests' }, lazy: guarded(PERMS.leaveAllRequests, () => import('@/modules/leave/admin/AllRequestsPage')) },
+                      { path: 'calendar', handle: { crumb: 'Leave Calendar' }, lazy: guarded(PERMS.leaveAdminCalendar, () => import('@/modules/leave/admin/AdminCalendarPage')) },
+                      { path: 'reports', handle: { crumb: 'Leave Reports' }, lazy: guarded(PERMS.leaveReports, () => import('@/modules/leave/admin/ReportsPage')) },
+                    ],
+                  },
+                  {
+                    path: 'config',
+                    handle: { crumb: 'Leave Configuration' },
+                    children: [
+                      { path: 'types', handle: { crumb: 'Leave Types' }, lazy: guarded(PERMS.leaveConfig, () => import('@/modules/leave/config/LeaveTypesPage')) },
+                      { path: 'policies', handle: { crumb: 'Leave Policies' }, lazy: guarded(PERMS.leaveConfig, () => import('@/modules/leave/config/LeavePoliciesPage')) },
+                      { path: 'holiday-calendars', handle: { crumb: 'Holiday Calendars' }, lazy: guarded(PERMS.leaveConfig, () => import('@/modules/leave/config/HolidayCalendarsPage')) },
+                      { path: 'workflows', handle: { crumb: 'Approval Workflows' }, lazy: guarded(PERMS.leaveWorkflows, () => import('@/modules/leave/config/ApprovalWorkflowsPage')) },
+                      { path: 'accrual', handle: { crumb: 'Accrual & Carry Forward' }, lazy: guarded(PERMS.leaveConfig, () => import('@/modules/leave/config/AccrualCarryForwardPage')) },
+                      { path: 'assignments', handle: { crumb: 'Employee Leave Assignments' }, lazy: guarded(PERMS.leaveAssignments, () => import('@/modules/leave/config/EmployeeAssignmentsPage')) },
+                    ],
+                  },
                 ],
               },
             ],
