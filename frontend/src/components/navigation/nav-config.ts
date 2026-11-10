@@ -107,7 +107,7 @@ export const SETTINGS_NAV: NavGroup[] = [
   },
   {
     label: 'Work Schedule',
-    items: [{ label: 'Work Schedule', to: '/settings/work-schedule', icon: CalendarClock, anyOf: PERMS.workSchedule }],
+    items: [{ label: 'Work Schedule Configurations', to: '/settings/work-schedule', icon: CalendarClock, anyOf: PERMS.workSchedule }],
   },
   {
     label: 'Access control',
