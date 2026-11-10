@@ -10,6 +10,7 @@ import { organizationRouter } from './modules/organization/organization.routes';
 import { registerLeaveWorkflow } from './modules/leave/leave.workflow-handler';
 import { rbacRouter } from './modules/rbac/rbac.routes';
 import { workflowRouter } from './modules/workflow/workflow.routes';
+import { assignmentRouter } from './modules/work-schedule/assignment.routes';
 import { workScheduleRouter } from './modules/work-schedule/work-schedule.routes';
 
 export function createApp() {
@@ -39,6 +40,7 @@ export function createApp() {
   v1.use(rbacRouter);
   v1.use(workflowRouter);
   v1.use(workScheduleRouter);
+  v1.use(assignmentRouter);
   v1.use(leaveConfigRouter);
   v1.use(leaveRouter);
   app.use('/api/v1', v1);

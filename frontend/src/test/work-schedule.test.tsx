@@ -57,9 +57,9 @@ function fakeClient<T>(items: T[], overrides: Partial<ResourceApi<T>> = {}): Res
 describe('navigation and routes', () => {
   it('Work Schedule shows in settings for any work schedule permission, and not for a manager', () => {
     const items = (perms: string[]) => visibleGroups(SETTINGS_NAV, can(perms)).flatMap((g) => g.items.map((i) => i.label));
-    expect(items(['workschedule.shift.view'])).toContain('Work Schedule');
-    expect(items(['workschedule.employee_type.manage'])).toContain('Work Schedule');
-    expect(items(['leave.request.approve'])).not.toContain('Work Schedule');
+    expect(items(['workschedule.shift.view'])).toContain('Work Schedule Configurations');
+    expect(items(['workschedule.employee_type.manage'])).toContain('Work Schedule Configurations');
+    expect(items(['leave.request.approve'])).not.toContain('Work Schedule Configurations');
   });
 
   it('/settings/work-schedule opens the first tab the user may view', () => {
@@ -137,7 +137,7 @@ describe('StatusToggleDialog', () => {
 describe('RotationForm', () => {
   const rotation: Rotation = {
     id: 9, name: 'Morning / Night', description: null, isActive: true, createdAt: '', updatedAt: '2026-01-01T00:00:00.000Z',
-    createdBy: 1, updatedBy: 1, rotationInterval: 1, rotationUnit: 'weeks', sequenceSummary: 'Morning > Night',
+    createdBy: 1, updatedBy: 1, rotationInterval: 1, rotationUnit: 'weeks', sequenceSummary: 'Morning > Night', activeAssignments: 0,
     items: [
       { id: 1, name: 'Morning', isActive: true, sequenceOrder: 1 },
       { id: 2, name: 'Night', isActive: true, sequenceOrder: 2 },

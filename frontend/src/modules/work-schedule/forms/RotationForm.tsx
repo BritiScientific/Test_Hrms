@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react';
+import { InlineAlert } from '@/components/feedback/States';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, Select, Textarea } from '@/components/ui/Field';
@@ -18,16 +19,12 @@ const MAX_ITEMS = 20;
 const schema = z.object({
   name: z.string().trim().min(2, 'Enter at least 2 characters').max(150, 'At most 150 characters'),
   description: z.string().trim().max(2000, 'At most 2000 characters'),
-  rotationInterval: z.string().trim().refine((v) => /^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 365, 'Whole number from 1 to 365'),
-  rotationUnit: z.enum(['days', 'weeks']),
 });
 type Values = z.infer<typeof schema>;
 
 const toValues = (r: Rotation | null): Values => ({
   name: r?.name ?? '',
   description: r?.description ?? '',
-  rotationInterval: String(r?.rotationInterval ?? 1),
-  rotationUnit: r?.rotationUnit ?? 'days',
 });
 
 interface Entry { id: number; name: string; isActive: boolean }
@@ -63,6 +60,8 @@ export function RotationForm({ of, record, client, onClose }: {
     defaultValues: toValues(record),
   });
 
+  // Employees are on this rotation: the server refuses changes to the interval, unit and entries.
+  const frozen = (current?.activeAssignments ?? 0) > 0;
   const available = useMemo(() => options.filter((o) => !entries.some((e) => e.id === o.id)), [options, entries]);
 
   const add = () => {
@@ -81,16 +80,15 @@ export function RotationForm({ of, record, client, onClose }: {
 
   const submit = handleSubmit(async (v) => {
     setFormError(null);
-    if (entries.length < 2) return setItemsError(`Add at least 2 ${entryLabel}s`);
+    if (!frozen && entries.length < 2) return setItemsError(`Add at least 2 ${entryLabel}s`);
     const inactive = entries.filter((e) => !e.isActive);
-    if (inactive.length) return setItemsError(`Remove deactivated ${entryLabel}s: ${inactive.map((e) => e.name).join(', ')}`);
+    if (!frozen && inactive.length) return setItemsError(`Remove deactivated ${entryLabel}s: ${inactive.map((e) => e.name).join(', ')}`);
     setItemsError(null);
     const body = {
       name: v.name.trim(),
       description: v.description.trim() || null,
-      rotationInterval: Number(v.rotationInterval),
-      rotationUnit: v.rotationUnit,
-      items: entries.map((e) => e.id),
+      // Frozen patterns send only the name and description.
+      ...(frozen ? {} : { items: entries.map((e) => e.id) }),
     };
     try {
       if (current) await client.update(current.id, { ...body, updatedAt: current.updatedAt });
@@ -135,6 +133,11 @@ export function RotationForm({ of, record, client, onClose }: {
       onReload={reload}
       submitLabel={current ? 'Save changes' : `Create ${label.toLowerCase()}`}
     >
+      {frozen && (
+        <InlineAlert tone="info" title={`${current!.activeAssignments} employee${current!.activeAssignments === 1 ? ' is' : 's are'} on this rotation`}>
+          Its entries are locked, so nobody&apos;s current {entryLabel} changes by surprise. You can still rename it or edit the description. To change the sequence, end those assignments or create a new pattern.
+        </InlineAlert>
+      )}
       <Field label="Pattern name" required error={errors.name?.message}>
         {({ id, describedBy, invalid }) => (
           <Input id={id} data-autofocus aria-describedby={describedBy} aria-invalid={invalid} maxLength={150} {...register('name')} />
@@ -157,13 +160,13 @@ export function RotationForm({ of, record, client, onClose }: {
                   {e.name}
                   {!e.isActive && <Badge tone="warning" className="ml-2">Inactive</Badge>}
                 </span>
-                <Button size="icon" variant="ghost" aria-label={`Move ${e.name} up`} disabled={i === 0} onClick={() => move(i, -1)}>
+                <Button size="icon" variant="ghost" aria-label={`Move ${e.name} up`} disabled={frozen || i === 0} onClick={() => move(i, -1)}>
                   <ArrowUp className="size-4" aria-hidden />
                 </Button>
-                <Button size="icon" variant="ghost" aria-label={`Move ${e.name} down`} disabled={i === entries.length - 1} onClick={() => move(i, 1)}>
+                <Button size="icon" variant="ghost" aria-label={`Move ${e.name} down`} disabled={frozen || i === entries.length - 1} onClick={() => move(i, 1)}>
                   <ArrowDown className="size-4" aria-hidden />
                 </Button>
-                <Button size="icon" variant="ghost" aria-label={`Remove ${e.name}`} onClick={() => remove(i)}>
+                <Button size="icon" variant="ghost" aria-label={`Remove ${e.name}`} disabled={frozen} onClick={() => remove(i)}>
                   <X className="size-4" aria-hidden />
                 </Button>
               </li>
@@ -176,32 +179,15 @@ export function RotationForm({ of, record, client, onClose }: {
             hint={!available.length && options.length ? `Every active ${entryLabel} is already in the sequence.` : undefined}>
             {({ id, describedBy, invalid }) => (
               <Select id={id} value={pick} onChange={(ev) => setPick(ev.target.value)} aria-describedby={describedBy}
-                aria-invalid={invalid} disabled={!available.length || entries.length >= MAX_ITEMS}>
+                aria-invalid={invalid} disabled={frozen || !available.length || entries.length >= MAX_ITEMS}>
                 <option value="">{options.length ? `Choose a ${entryLabel}…` : `No active ${entryLabel}s yet`}</option>
                 {available.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
               </Select>
             )}
           </Field>
-          <Button variant="outline" icon={<Plus className="size-4" />} onClick={add} disabled={!pick}>Add</Button>
+          <Button variant="outline" icon={<Plus className="size-4" />} onClick={add} disabled={frozen || !pick}>Add</Button>
         </div>
       </fieldset>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Rotate every" required error={errors.rotationInterval?.message}>
-          {({ id, describedBy, invalid }) => (
-            <Input id={id} type="number" inputMode="numeric" min={1} max={365} step={1}
-              aria-describedby={describedBy} aria-invalid={invalid} {...register('rotationInterval')} />
-          )}
-        </Field>
-        <Field label="Unit" required error={errors.rotationUnit?.message}>
-          {({ id, describedBy, invalid }) => (
-            <Select id={id} aria-describedby={describedBy} aria-invalid={invalid} {...register('rotationUnit')}>
-              <option value="days">Days</option>
-              <option value="weeks">Weeks</option>
-            </Select>
-          )}
-        </Field>
-      </div>
 
       <Field label="Description" error={errors.description?.message}>
         {({ id, describedBy, invalid }) => (

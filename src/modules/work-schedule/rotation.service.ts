@@ -5,7 +5,7 @@ import {
   type BaseRecord, type ResourceDef,
 } from './named-config.service';
 import { businessFields, diffFields, writeAudit, type EntityType } from './work-schedule.audit';
-import { fieldValidation, inactiveReference } from './work-schedule.errors';
+import { fieldValidation, inactiveReference, MAX_BLOCKERS, patternFrozen, type Blocker } from './work-schedule.errors';
 import type { ListQuery, RotationCreate, RotationPatch, StatusBody } from './work-schedule.schemas';
 
 /**
@@ -31,6 +31,8 @@ export interface Rotation extends BaseRecord {
   items: RotationItem[];
   /** "Morning > Night" */
   sequenceSummary: string;
+  /** Employees currently on (or scheduled for) this rotation. Above 0 the pattern is frozen. */
+  activeAssignments: number;
 }
 
 interface RotationKind {
@@ -40,6 +42,8 @@ interface RotationKind {
   refColumn: string;
   /** "shift" / "work type", for messages. */
   refLabel: string;
+  assignmentTable: string;
+  assignmentType: Blocker['type'];
 }
 
 const COLUMNS: Record<string, string> = {
@@ -48,6 +52,7 @@ const COLUMNS: Record<string, string> = {
 
 function makeKind(o: {
   table: string; itemTable: string; refTable: string; refColumn: string; refLabel: string;
+  assignmentTable: string; assignmentType: Blocker['type'];
   entityType: EntityType; label: string; nameIndex: string;
 }): RotationKind {
   const kind: RotationKind = {
@@ -55,37 +60,62 @@ function makeKind(o: {
     refTable: o.refTable,
     refColumn: o.refColumn,
     refLabel: o.refLabel,
+    assignmentTable: o.assignmentTable,
+    assignmentType: o.assignmentType,
     def: {
       table: o.table,
       entityType: o.entityType,
       label: o.label,
       nameIndex: o.nameIndex,
-      select: `SELECT p.* FROM ${o.table} p`,
+      select: `SELECT p.*, (SELECT count(*) FROM ${o.assignmentTable} a WHERE a.tenant_id = p.tenant_id AND a.pattern_id = p.id
+                 AND ${LIVE('a')})::int AS active_assignments FROM ${o.table} p`,
       toApi: (row) => ({
         ...baseFields(row),
         rotationInterval: row.rotation_interval,
         rotationUnit: row.rotation_unit,
         items: [],
         sequenceSummary: '',
+        activeAssignments: row.active_assignments ?? 0,
       }),
       attach: (tx, records) => attachItems(tx, kind, records),
-      // Nothing references a rotation yet (employee assignments are out of scope).
-      dependents: undefined,
+      // Deactivation is blocked while employees are on the rotation; the blockers are the assignments.
+      dependents: (tx, id) => liveAssignments(tx, kind, id),
       activationCheck: (tx, row) => assertItemsActive(tx, kind, Number(row.id)),
     },
   };
   return kind;
 }
 
+/** An assignment is live while it is not cancelled and its end date is empty or not yet past (tenant timezone). */
+export const LIVE = (alias: string) =>
+  `${alias}.status <> 'cancelled' AND (${alias}.end_date IS NULL OR ${alias}.end_date >= ws_tenant_today(${alias}.tenant_id))`;
+
+async function liveAssignments(tx: Tx, kind: RotationKind, patternId: number) {
+  const r = await tx.query(
+    `SELECT a.id, e.full_name AS name, count(*) OVER ()::int AS total
+       FROM ${kind.assignmentTable} a
+       JOIN employees e ON e.tenant_id = a.tenant_id AND e.id = a.employee_id
+      WHERE a.pattern_id = $1 AND ${LIVE('a')}
+      ORDER BY lower(e.full_name), a.id LIMIT $2`,
+    [patternId, MAX_BLOCKERS],
+  );
+  return {
+    total: r.rows[0]?.total ?? 0,
+    items: r.rows.map((x): Blocker => ({ type: kind.assignmentType, id: Number(x.id), name: x.name })),
+  };
+}
+
 export const rotatingShiftKind = makeKind({
   table: 'rotating_shift_patterns', itemTable: 'rotating_shift_pattern_items',
   refTable: 'work_shifts', refColumn: 'shift_id', refLabel: 'shift',
+  assignmentTable: 'rotating_shift_assignments', assignmentType: 'rotating_shift_assignment',
   entityType: 'rotating_shift', label: 'Rotating shift', nameIndex: 'uq_rotating_shift_patterns_name',
 });
 
 export const rotatingWorkTypeKind = makeKind({
   table: 'rotating_work_type_patterns', itemTable: 'rotating_work_type_pattern_items',
   refTable: 'work_types', refColumn: 'work_type_id', refLabel: 'work type',
+  assignmentTable: 'rotating_work_type_assignments', assignmentType: 'rotating_work_type_assignment',
   entityType: 'rotating_work_type', label: 'Rotating work type', nameIndex: 'uq_rotating_work_type_patterns_name',
 });
 
@@ -214,6 +244,12 @@ export async function updateRotation(tx: Tx, auth: AuthContext, kind: RotationKi
   const itemsChanged = body.items !== undefined && JSON.stringify(body.items) !== JSON.stringify(currentIds);
   if (!Object.keys(changes).length && !itemsChanged) return before;
 
+  // Interval, unit and entries decide everyone's current entry: frozen while employees are on the rotation.
+  const frozenChange = itemsChanged;
+  if (frozenChange) {
+    const live = await liveAssignments(tx, kind, id);
+    if (live.total > 0) throw patternFrozen(def.label, live.total, live.items);
+  }
   if (changes.name !== undefined) await assertNameFree(tx, def.table, def.label, String(changes.name), id);
   if (itemsChanged) {
     assertItemShape(body.items!);

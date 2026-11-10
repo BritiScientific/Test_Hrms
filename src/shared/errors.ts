@@ -85,6 +85,9 @@ function overlapMessage(constraint?: string): string {
       return 'An active accrual rule already covers this entitlement for an overlapping period';
     case 'ex_leave_carry_one_active':
       return 'An active carry-forward rule already covers this entitlement for an overlapping period';
+    case 'ex_rotating_shift_assignment_no_overlap':
+    case 'ex_rotating_work_type_assignment_no_overlap':
+      return 'This employee already has a rotation for an overlapping period';
     case 'ex_leave_comp_off_one_active':
       return 'An active comp off rule already covers this leave type for an overlapping period';
     default:

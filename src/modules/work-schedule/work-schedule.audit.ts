@@ -2,14 +2,15 @@ import type { Tx } from '../../config/db';
 import type { AuthContext } from '../../shared/types';
 
 export type EntityType =
-  | 'employee_type' | 'shift' | 'work_type' | 'rotating_shift' | 'rotating_work_type' | 'shift_schedule';
+  | 'employee_type' | 'shift' | 'work_type' | 'rotating_shift' | 'rotating_work_type' | 'shift_schedule'
+  | 'rotating_shift_assignment' | 'rotating_work_type_assignment';
 
-export type AuditAction = 'created' | 'updated' | 'activated' | 'deactivated';
+export type AuditAction = 'created' | 'updated' | 'activated' | 'deactivated' | 'ended' | 'cancelled';
 
 /** Bookkeeping and derived (read-only) fields that are never part of an audit diff. */
 const NOT_BUSINESS = new Set([
   'id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'warnings',
-  'employeeCount', 'usage', 'sequenceSummary', 'workingDaysSummary',
+  'employeeCount', 'usage', 'activeAssignments', 'sequenceSummary', 'workingDaysSummary',
 ]);
 
 /**

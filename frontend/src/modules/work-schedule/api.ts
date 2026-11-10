@@ -1,6 +1,6 @@
 import { api, qs } from '@/services/api-client';
 import type {
-  EmployeeType, ListParams, Option, Paged, Rotation, RotationUnit, Shift, ShiftSchedule, WorkType, BaseCategory,
+  EmployeeType, ListParams, Option, Paged, Rotation, Shift, ShiftSchedule, WorkType, BaseCategory,
 } from './types';
 
 /** Typed client for /api/v1/work-schedule. There is no delete call anywhere: records are deactivated. */
@@ -35,5 +35,5 @@ export interface EmployeeTypeBody { name: string; description?: string | null; b
 export interface ShiftBody { name: string; description?: string | null; graceTimeMinutes: number }
 export interface WorkTypeBody { name: string; description?: string | null }
 export interface RotationBody {
-  name: string; description?: string | null; rotationInterval: number; rotationUnit: RotationUnit; items: number[];
+  name: string; description?: string | null; items: number[];
 }

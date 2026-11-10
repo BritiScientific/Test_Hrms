@@ -73,11 +73,12 @@ export function auditActionLabel(action: string): string {
   };
   if (labels[action]) return labels[action];
   // Work schedule events are "<entity>.<created|updated|activated|deactivated>".
-  const ws = /^(employee_type|shift|work_type|rotating_shift|rotating_work_type|shift_schedule)\.(created|updated|activated|deactivated)$/.exec(action);
+  const ws = /^(employee_type|shift|work_type|rotating_shift|rotating_work_type|shift_schedule|rotating_shift_assignment|rotating_work_type_assignment)\.(created|updated|activated|deactivated|ended|cancelled)$/.exec(action);
   if (ws) {
     const entity: Record<string, string> = {
       employee_type: 'Employee type', shift: 'Shift', work_type: 'Work type', rotating_shift: 'Rotating shift',
       rotating_work_type: 'Rotating work type', shift_schedule: 'Shift schedule',
+      rotating_shift_assignment: 'Rotating shift assignment', rotating_work_type_assignment: 'Rotating work type assignment',
     };
     return `${entity[ws[1]]} ${ws[2]}`;
   }

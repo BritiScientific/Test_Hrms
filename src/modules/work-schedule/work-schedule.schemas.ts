@@ -97,3 +97,83 @@ export const SchedulePatch = z.object({
 }).strict();
 export type ScheduleCreate = z.infer<typeof ScheduleCreate>;
 export type SchedulePatch = z.infer<typeof SchedulePatch>;
+
+// ------------------------------------------------------ rotation assignments ---
+/** A real calendar date: Date quietly turns 02-31 into 03-03, so round-trip it. */
+export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD').refine((d) => {
+  const t = new Date(`${d}T00:00:00Z`);
+  return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d;
+}, 'Invalid date');
+const optDate = z.preprocess(blankToNull, isoDate.nullable()).optional();
+const reason = z.preprocess(blankToNull, z.string().trim().max(500, 'At most 500 characters').nullable()).optional();
+
+export const MAX_BULK = 200;
+
+const whole = (what: string, min: number, max: number) =>
+  z.coerce.number({ message: `${what} must be a number` }).int(`${what} must be a whole number`)
+    .min(min, `${what} must be at least ${min}`).max(max, `${what} must be at most ${max}`);
+
+/** How the rotation switches: every N days, on a weekday (1 = Monday), or on a day of the month. */
+export const RotationRuleInput = z.discriminatedUnion('basedOn', [
+  z.object({ basedOn: z.literal('after'), afterDays: whole('Days', 1, 365) }).strict(),
+  z.object({ basedOn: z.literal('weekly'), weekday: whole('Weekday', 1, 7) }).strict(),
+  z.object({ basedOn: z.literal('monthly'), monthDay: z.union([z.literal('last'), whole('Day of month', 1, 31)]) }).strict(),
+], { message: 'Choose how the rotation repeats' });
+
+export const AssignmentCreate = z.object({
+  employeeIds: z.array(id).min(1, 'Choose at least one employee').max(MAX_BULK, `At most ${MAX_BULK} employees at a time`)
+    .refine((a) => new Set(a).size === a.length, 'An employee was chosen twice'),
+  patternId: id,
+  startDate: isoDate,
+  rotation: RotationRuleInput,
+  reason,
+}).strict();
+export type AssignmentCreate = z.infer<typeof AssignmentCreate>;
+
+export const AssignmentPatch = z.object({
+  patternId: id.optional(),
+  startDate: isoDate.optional(),
+  rotation: RotationRuleInput.optional(),
+  endDate: optDate,
+  reason,
+  updatedAt,
+}).strict();
+export type AssignmentPatch = z.infer<typeof AssignmentPatch>;
+
+export const AssignmentEnd = z.object({ endDate: optDate, updatedAt }).strict();
+export const AssignmentCancel = z.object({ reason, updatedAt }).strict();
+export const AssignmentBulkEnd = z.object({
+  ids: z.array(id).min(1).max(MAX_BULK).refine((a) => new Set(a).size === a.length, 'An assignment was chosen twice'),
+  endDate: optDate,
+}).strict();
+
+export const AssignmentListQuery = z.object({
+  search: z.string().trim().max(100).optional(),
+  status: z.enum(['all', 'active', 'ended', 'cancelled']).default('all'),
+  patternId: id.optional(),
+  from: isoDate.optional(),
+  to: isoDate.optional(),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  sort: z.enum(['-startDate', 'startDate', 'employee', '-employee']).default('-startDate'),
+}).strict();
+export type AssignmentListQuery = z.infer<typeof AssignmentListQuery>;
+
+export const PickerQuery = z.object({
+  kind: z.enum(['rotating-shift', 'rotating-work-type']),
+  search: z.string().trim().max(100).optional(),
+  departmentId: id.optional(),
+  jobTitle: z.string().trim().max(150).optional(),
+  employeeTypeId: id.optional(),
+  roleId: id.optional(),
+  managerId: id.optional(),
+  joinedFrom: isoDate.optional(),
+  joinedTo: isoDate.optional(),
+  assignment: z.enum(['assigned', 'unassigned']).optional(),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  idsOnly: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+}).strict();
+export type PickerQuery = z.infer<typeof PickerQuery>;
+
+export type AssignmentBulkEnd = z.infer<typeof AssignmentBulkEnd>;

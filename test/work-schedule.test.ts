@@ -156,3 +156,144 @@ describe('audit diff', () => {
     assert.equal(diffFields({ name: 'A' }, { name: 'A' }), null);
   });
 });
+
+// ------------------------------------------------------------ rotation assignment ---
+import { addDaysIso, daysBetween, resolveRotation, rotationLabel } from '../src/modules/work-schedule/work-schedule-calculation';
+import { AssignmentCreate, AssignmentListQuery, PickerQuery } from '../src/modules/work-schedule/work-schedule.schemas';
+
+describe('resolveRotation', () => {
+  const items = ['A', 'B', 'C'];
+  const at = (today: string, o: Partial<Parameters<typeof resolveRotation<string>>[0]> = {}) =>
+    resolveRotation<string>({ startDate: '2026-01-01', endDate: null, today, rule: { basedOn: 'after', afterDays: 8 }, items, ...o });
+
+  test('day 0 is the first entry and the next switch is one interval later', () => {
+    const r = at('2026-01-01');
+    assert.deepEqual([r.state, r.periodIndex, r.current, r.nextSwitch, r.next], ['current', 0, 'A', '2026-01-09', 'B']);
+  });
+
+  test('the last day of an interval is still the same entry', () => {
+    assert.equal(at('2026-01-08').current, 'A');
+    assert.equal(at('2026-01-08').nextSwitch, '2026-01-09');
+  });
+
+  test('the switch day starts the next entry', () => {
+    const r = at('2026-01-09');
+    assert.deepEqual([r.periodIndex, r.current, r.nextSwitch, r.next], [1, 'B', '2026-01-17', 'C']);
+  });
+
+  test('after the last entry it wraps to the first', () => {
+    const r = at('2026-01-25'); // day 24 = period 3
+    assert.deepEqual([r.periodIndex, r.current, r.next], [3, 'A', 'B']);
+    assert.equal(at('2026-01-17').next, 'A'); // C -> A
+  });
+
+  test('"after" works for any number of days, including 14', () => {
+    const rule = { basedOn: 'after', afterDays: 14 } as const;
+    assert.equal(at('2026-01-14', { rule }).current, 'A');
+    assert.equal(at('2026-01-15', { rule }).current, 'B');
+  });
+
+  test('weekly: switches on the chosen weekday, strictly after the start date', () => {
+    const mon = { basedOn: 'weekly', weekday: 1 } as const; // 2026-01-01 is a Thursday
+    let r = at('2026-01-04', { rule: mon });
+    assert.deepEqual([r.current, r.nextSwitch, r.next], ['A', '2026-01-05', 'B']);
+    assert.deepEqual([at('2026-01-05', { rule: mon }).current, at('2026-01-11', { rule: mon }).current], ['B', 'B']);
+    assert.equal(at('2026-01-12', { rule: mon }).current, 'C');
+    assert.equal(at('2026-01-19', { rule: mon }).current, 'A');
+    r = at('2026-01-01', { rule: { basedOn: 'weekly', weekday: 4 } }); // same weekday as the start: first switch is a week later
+    assert.equal(r.nextSwitch, '2026-01-08');
+  });
+
+  test('monthly: switches on the chosen day of each month', () => {
+    const d15 = { basedOn: 'monthly', monthDay: 15 } as const;
+    assert.deepEqual([at('2026-01-14', { rule: d15 }).current, at('2026-01-14', { rule: d15 }).nextSwitch], ['A', '2026-01-15']);
+    assert.equal(at('2026-01-15', { rule: d15 }).current, 'B');
+    assert.equal(at('2026-02-15', { rule: d15 }).current, 'C');
+    assert.equal(at('2026-03-15', { rule: d15 }).current, 'A');
+    // starting on the 1st with "day 1": the first switch is next month
+    assert.equal(at('2026-01-20', { rule: { basedOn: 'monthly', monthDay: 1 } }).nextSwitch, '2026-02-01');
+  });
+
+  test('monthly: "last day" and day 31 follow the length of each month', () => {
+    const last = { basedOn: 'monthly', monthDay: 'last' } as const;
+    assert.deepEqual([at('2026-01-30', { rule: last }).nextSwitch, at('2026-01-31', { rule: last }).current], ['2026-01-31', 'B']);
+    assert.deepEqual([at('2026-02-28', { rule: last }).current, at('2026-02-28', { rule: last }).nextSwitch], ['C', '2026-03-31']);
+    const d31 = { basedOn: 'monthly', monthDay: 31 } as const;
+    assert.equal(at('2026-02-27', { rule: d31 }).nextSwitch, '2026-02-28'); // February has no 31st
+    assert.equal(at('2026-04-29', { rule: d31 }).nextSwitch, '2026-04-30');
+    // across a year end
+    assert.equal(resolveRotation({ startDate: '2026-12-20', endDate: null, today: '2026-12-25', rule: { basedOn: 'monthly', monthDay: 5 }, items }).nextSwitch, '2027-01-05');
+  });
+
+  test('before the start date there is no current entry', () => {
+    const r = at('2025-12-31');
+    assert.deepEqual([r.state, r.current, r.next, r.nextSwitch, r.periodIndex], ['upcoming', null, null, null, null]);
+  });
+
+  test('after the end date the rotation is completed', () => {
+    const r = at('2026-02-01', { endDate: '2026-01-20' });
+    assert.deepEqual([r.state, r.current], ['completed', null]);
+    assert.equal(at('2026-01-20', { endDate: '2026-01-20' }).state, 'current', 'the end date itself is still in force');
+  });
+
+  test('a switch after the end date is not shown', () => {
+    const r = at('2026-01-10', { endDate: '2026-01-12' });
+    assert.deepEqual([r.current, r.nextSwitch, r.next], ['B', null, null]);
+  });
+
+  test('date arithmetic ignores DST and month lengths', () => {
+    assert.equal(daysBetween('2026-03-01', '2026-03-31'), 30);
+    assert.equal(addDaysIso('2026-02-27', 2), '2026-03-01');
+    assert.equal(rotationLabel({ basedOn: 'after', afterDays: 8 }), 'Every 8 days');
+    assert.equal(rotationLabel({ basedOn: 'weekly', weekday: 1 }), 'Every Monday');
+    assert.equal(rotationLabel({ basedOn: 'monthly', monthDay: 'last' }), 'Monthly on the last day');
+    assert.deepEqual([1, 2, 3, 11, 15, 22, 31].map((n) => rotationLabel({ basedOn: 'monthly', monthDay: n })),
+      ['1st', '2nd', '3rd', '11th', '15th', '22nd', '31st'].map((o) => `Monthly on the ${o}`));
+  });
+});
+
+describe('assignment schemas', () => {
+  test('bulk create is capped at 200 distinct employees and needs a real date', () => {
+    const ok = { employeeIds: [1, 2], patternId: 3, startDate: '2026-02-01', rotation: { basedOn: 'after', afterDays: 5 } };
+    assert.equal(AssignmentCreate.safeParse(ok).success, true);
+    assert.equal(AssignmentCreate.safeParse({ ...ok, employeeIds: Array.from({ length: 201 }, (_, i) => i + 1) }).success, false);
+    assert.equal(AssignmentCreate.safeParse({ ...ok, employeeIds: Array.from({ length: 200 }, (_, i) => i + 1) }).success, true);
+    assert.equal(AssignmentCreate.safeParse({ ...ok, employeeIds: [1, 1] }).success, false);
+    assert.equal(AssignmentCreate.safeParse({ ...ok, employeeIds: [] }).success, false);
+    assert.equal(AssignmentCreate.safeParse({ ...ok, startDate: '2026-02-31' }).success, false);
+  });
+
+  test('the rotation rule must match "based on"', () => {
+    const ok = { employeeIds: [1], patternId: 3, startDate: '2026-02-01' };
+    const parse = (rotation: unknown) => AssignmentCreate.safeParse({ ...ok, rotation }).success;
+    assert.equal(parse({ basedOn: 'weekly', weekday: 7 }), true);
+    assert.equal(parse({ basedOn: 'weekly', weekday: 8 }), false);
+    assert.equal(parse({ basedOn: 'monthly', monthDay: 'last' }), true);
+    assert.equal(parse({ basedOn: 'monthly', monthDay: 31 }), true);
+    assert.equal(parse({ basedOn: 'monthly', monthDay: 32 }), false);
+    assert.equal(parse({ basedOn: 'after', afterDays: 0 }), false);
+    assert.equal(parse({ basedOn: 'after', afterDays: 366 }), false);
+    assert.equal(parse({ basedOn: 'after', weekday: 1 }), false, 'a weekday does not belong to "after"');
+    assert.equal(parse({ basedOn: 'yearly' }), false);
+    assert.equal(AssignmentCreate.safeParse(ok).success, false, 'rotation is required');
+  });
+
+  test('tenant_id, status and assigned_by cannot be mass-assigned', () => {
+    const ok = { employeeIds: [1], patternId: 3, startDate: '2026-02-01', rotation: { basedOn: 'after', afterDays: 5 } };
+    for (const extra of [{ tenantId: 2 }, { status: 'ended' }, { assignedBy: 9 }]) {
+      assert.equal(AssignmentCreate.safeParse({ ...ok, ...extra }).success, false);
+    }
+  });
+
+  test('list limit is capped at 100 and sort is whitelisted', () => {
+    assert.equal(AssignmentListQuery.safeParse({ limit: '101' }).success, false);
+    assert.equal(AssignmentListQuery.safeParse({ sort: 'employee; drop' }).success, false);
+    assert.equal(AssignmentListQuery.safeParse({ sort: '-employee', status: 'ended' }).success, true);
+  });
+
+  test('the picker needs a kind and parses idsOnly', () => {
+    assert.equal(PickerQuery.safeParse({}).success, false);
+    const q = PickerQuery.parse({ kind: 'rotating-shift', idsOnly: 'true' });
+    assert.equal(q.idsOnly, true);
+  });
+});

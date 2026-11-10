@@ -34,10 +34,6 @@ const rotationColumns: Column<Rotation>[] = [
       </span>
     ),
   },
-  {
-    key: 'interval', header: 'Interval',
-    render: (r) => `Every ${plural(r.rotationInterval, r.rotationUnit === 'weeks' ? 'week' : 'day')}`,
-  },
 ];
 
 /** What each tab lists and how it is edited. */

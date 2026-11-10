@@ -9,6 +9,7 @@ import { MAIN_NAV, firstSettingsPath, visibleGroups } from '@/components/navigat
 import { ErrorState } from '@/components/feedback/States';
 import UnauthorizedPage, { NotFoundPage } from '@/modules/auth/UnauthorizedPage';
 import { WORK_SCHEDULE_TABS, firstVisibleTab, tabPath, tabPermissions } from '@/modules/work-schedule/tabs';
+import { ASSIGN_TABS, assignTabPath, assignTabPermissions, firstVisibleAssignTab } from '@/modules/work-schedules/tabs';
 
 /** Route-level code splitting: each screen is its own chunk. */
 const page = (load: () => Promise<{ default: ComponentType }>) => async () => ({ Component: (await load()).default });
@@ -43,6 +44,13 @@ function WorkScheduleIndex() {
   const { canAny } = useAuth();
   const first = firstVisibleTab(canAny);
   return <Navigate to={first ? tabPath(first.key) : '/unauthorized'} replace />;
+}
+
+/** /settings/work-schedules goes to the first assignment tab this user may view. */
+function WorkSchedulesIndex() {
+  const { canAny } = useAuth();
+  const first = firstVisibleAssignTab(canAny);
+  return <Navigate to={first ? assignTabPath(first.key) : '/unauthorized'} replace />;
 }
 
 function RouteError() {
@@ -151,6 +159,23 @@ export const routes: RouteObject[] = [
                 ],
               },
               { path: 'organization-chart', handle: { crumb: 'Organization Chart' }, lazy: guarded(PERMS.orgChart, () => import('@/modules/organization/OrganizationChartPage')) },
+              {
+                // Settings > Work Schedule > Work Schedules. The pathless parent adds the "Work Schedule" crumb,
+                // so the trail reads like the configuration screens that sit beside it.
+                handle: { crumb: 'Work Schedule', crumbTo: '/settings/work-schedule' },
+                children: [{
+                  path: 'work-schedules',
+                  handle: { crumb: 'Work Schedules', crumbTo: '/settings/work-schedules' },
+                  lazy: guarded(PERMS.workSchedules, () => import('@/modules/work-schedules/WorkSchedulesPage')),
+                  children: [
+                    { index: true, element: <WorkSchedulesIndex /> },
+                    ...ASSIGN_TABS.map((t): RouteObject => ({
+                      path: t.key,
+                      lazy: guarded(assignTabPermissions(t), () => import('@/modules/work-schedules/WorkSchedulesTab')),
+                    })),
+                  ],
+                }],
+              },
               {
                 // Settings > Work Schedule > <tab>: a layout (header + tab strip) and one guarded child per tab.
                 path: 'work-schedule',

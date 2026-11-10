@@ -43,6 +43,8 @@ export interface Rotation extends BaseRecord {
   rotationUnit: RotationUnit;
   items: RotationItem[];
   sequenceSummary: string;
+  /** Employees on (or scheduled for) this rotation. Above 0 the interval, unit and entries are frozen. */
+  activeAssignments: number;
 }
 
 export interface ScheduleDay {

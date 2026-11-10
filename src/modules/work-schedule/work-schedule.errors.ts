@@ -11,7 +11,8 @@ import { AppError, conflict, unprocessable } from '../../shared/errors';
  */
 
 export interface Blocker {
-  type: 'employee' | 'shift_schedule' | 'rotating_shift' | 'rotating_work_type';
+  type: 'employee' | 'shift_schedule' | 'rotating_shift' | 'rotating_work_type'
+    | 'rotating_shift_assignment' | 'rotating_work_type_assignment';
   id: number;
   name: string;
 }
@@ -34,7 +35,32 @@ export const hasActiveDependents = (label: string, total: number, items: Blocker
     `This ${label.toLowerCase()} is still in use by ${total} active record${total === 1 ? '' : 's'}. Deactivate or change those first.`,
     { total, items: items.slice(0, MAX_BLOCKERS) });
 
-export const inactiveReference = (message: string, field?: string) =>
+/** A pattern with live assignments cannot change its interval, unit or entries. */
+export const patternFrozen = (label: string, total: number, items: Blocker[]) =>
+  conflict('HAS_ACTIVE_DEPENDENTS',
+    `This ${label.toLowerCase()} is assigned to ${total} employee${total === 1 ? '' : 's'}, so its interval and entries cannot change. End those assignments first, or create a new pattern.`,
+    { total, items: items.slice(0, MAX_BLOCKERS) });
+
+export interface OverlapConflict {
+  employeeId: number;
+  employeeName: string;
+  assignmentId: number;
+  patternName: string;
+  startDate: string;
+  endDate: string | null;
+}
+
+/** Bulk create is all-or-nothing: nothing is saved, and every clash is listed. */
+export const assignmentOverlap = (conflicts: OverlapConflict[]) =>
+  conflict('ASSIGNMENT_OVERLAP',
+    `${conflicts.length} employee${conflicts.length === 1 ? ' already has' : 's already have'} a rotation in this period. Nothing was saved.`,
+    { conflicts: conflicts.slice(0, 200), total: conflicts.length });
+
+/** The assignment is in a state that does not allow this action (ended, cancelled, started, not started). */
+export const invalidAssignmentState = (message: string, fieldErrors?: Record<string, string>) =>
+  conflict('INVALID_ASSIGNMENT_STATE', message, fieldErrors ? { fieldErrors } : undefined);
+
+export const inactiveReference =(message: string, field?: string) =>
   unprocessable('INACTIVE_REFERENCE', message, field ? { fieldErrors: { [field]: message } } : undefined);
 
 /** Service-level field validation, same shape as the employee module. */
