@@ -8,6 +8,8 @@ import { leaveRouter } from './modules/leave/leave.routes';
 import { onboardingRouter } from './modules/onboarding/onboarding.routes';
 import { organizationRouter } from './modules/organization/organization.routes';
 import { registerLeaveWorkflow } from './modules/leave/leave.workflow-handler';
+import { publicCareersRouter } from './modules/recruitment/public.routes';
+import { recruitmentRouter } from './modules/recruitment/recruitment.routes';
 import { rbacRouter } from './modules/rbac/rbac.routes';
 import { workflowRouter } from './modules/workflow/workflow.routes';
 import { assignmentRouter } from './modules/work-schedule/assignment.routes';
@@ -41,6 +43,8 @@ export function createApp() {
   v1.use(workflowRouter);
   v1.use(workScheduleRouter);
   v1.use(assignmentRouter);
+  v1.use(publicCareersRouter);
+  v1.use(recruitmentRouter);
   v1.use(leaveConfigRouter);
   v1.use(leaveRouter);
   app.use('/api/v1', v1);

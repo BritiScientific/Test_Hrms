@@ -74,6 +74,15 @@ export const MAIN_NAV: NavGroup[] = [
     ],
   },
   {
+    label: 'Recruitment',
+    items: [
+      { label: 'Pipeline', to: '/recruitment/pipeline', icon: BriefcaseBusiness, anyOf: PERMS.recruitmentPipeline },
+      { label: 'Candidates', to: '/recruitment/candidates', icon: UsersRound, anyOf: PERMS.recruitmentCandidates },
+      { label: 'Interviews', to: '/recruitment/interviews', icon: CalendarClock, anyOf: PERMS.recruitmentInterviews },
+      { label: 'Recruitment Configuration', to: '/recruitment/configuration', icon: SlidersHorizontal, anyOf: PERMS.recruitmentConfig },
+    ],
+  },
+  {
     label: 'Administration',
     items: [
       { label: 'Organization', to: '/settings/organization/profile', icon: Building2, anyOf: PERMS.orgProfile },
@@ -90,7 +99,6 @@ export const MAIN_NAV: NavGroup[] = [
 export const UPCOMING_MODULES: UpcomingItem[] = [
   { label: 'Attendance Management', icon: CalendarCheck },
   { label: 'Payroll Management', icon: Wallet },
-  { label: 'Recruitment Management', icon: BriefcaseBusiness },
   { label: 'Performance Management', icon: ChartNoAxesCombined },
   { label: 'Training & Development', icon: GraduationCap },
   { label: 'Reports & Analytics', icon: ChartPie },

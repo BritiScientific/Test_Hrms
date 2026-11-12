@@ -58,6 +58,22 @@ function duplicateMessage(constraint?: string): string {
       return 'Another active calendar is already the default for that year';
     case 'leave_holidays_tenant_id_calendar_id_holiday_date_key':
       return 'This calendar already has a holiday on that date';
+    case 'uq_rec_job_positions_title':
+      return 'A job position with this title already exists in that department';
+    case 'uq_survey_templates_name':
+      return 'A survey template with this name already exists';
+    case 'uq_rejection_reasons_name':
+      return 'A rejection reason with this name already exists';
+    case 'uq_stage_name':
+      return 'Two stages have the same name';
+    case 'uq_stage_applied':
+    case 'uq_stage_hired':
+    case 'uq_stage_rejected':
+      return 'A pipeline can have only one Applied, one Hired and one Rejected stage';
+    case 'uq_recruitments_slug':
+      return 'Could not generate a unique link for this recruitment. Please try again';
+    case 'uq_rec_candidates_email':
+      return 'A candidate with this email already exists';
     case 'uq_leave_comp_off_date':
       return 'You already have a comp off claim for that date';
     default:

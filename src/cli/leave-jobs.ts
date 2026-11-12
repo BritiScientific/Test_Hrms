@@ -1,7 +1,7 @@
 /**
  * Scheduled leave jobs. Run from cron or a task scheduler; re-running is safe.
  *
- *   npm run leave:jobs -- daily                       accrual, expiry, attachment cleanup
+ *   npm run leave:jobs -- daily                       accrual, expiry, attachment and recruitment-upload cleanup
  *   npm run leave:jobs -- accrual  [--as-of YYYY-MM-DD] [--dry-run]
  *   npm run leave:jobs -- expiry   [--as-of YYYY-MM-DD] [--dry-run]
  *   npm run leave:jobs -- carry-forward --from-year 2026 [--dry-run]
@@ -17,6 +17,7 @@ import pg from 'pg';
 import { pool, withTenantTx } from '../config/db';
 import { runAccrual } from '../modules/leave/leave-accrual.service';
 import { purgeOrphanAttachments } from '../modules/leave/leave-attachment.service';
+import { purgeOrphanDocuments } from '../modules/recruitment/application.service';
 import { runCarryForward, runExpiry } from '../modules/leave/leave-carry-forward.service';
 
 function ownerUrl(): string {
@@ -72,6 +73,7 @@ async function main() {
       }
       if (command === 'daily' && !dryRun) {
         result.orphanAttachmentsRemoved = await withTenantTx(tenantId, (tx) => purgeOrphanAttachments(tx));
+        result.orphanCandidateDocumentsRemoved = await withTenantTx(tenantId, (tx) => purgeOrphanDocuments(tx));
       }
       console.log(JSON.stringify({ level: 'info', tenantId, command, ...result }));
     } catch (e: any) {

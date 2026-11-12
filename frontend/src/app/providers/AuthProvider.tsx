@@ -144,4 +144,9 @@ export const PERMS = {
   workSchedule: ALL_WORK_SCHEDULE_PERMS,
   /** Any assignment permission opens Settings > Work Schedule > Work Schedules; each tab checks its own. */
   workSchedules: ALL_ASSIGN_PERMS,
+  recruitmentPipeline: ['recruitment.pipeline.view'],
+  recruitmentCandidates: ['recruitment.candidate.view'],
+  /** Interviewers (feedback permission) see only their own interviews; the API scopes the list. */
+  recruitmentInterviews: ['recruitment.interview.view', 'recruitment.interview.manage', 'recruitment.interview.feedback'],
+  recruitmentConfig: ['recruitment.configuration.view', 'recruitment.configuration.manage'],
 } as const;

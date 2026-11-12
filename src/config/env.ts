@@ -40,6 +40,8 @@ export const env = {
   COOKIE_SECURE: (process.env.COOKIE_SECURE ?? (NODE_ENV === 'production' ? 'true' : 'false')) === 'true',
   /** Public URL of the web app, used to build activation links. */
   APP_BASE_URL: process.env.APP_BASE_URL ?? 'http://localhost:5173',
+  /** Organization shown on /careers when the URL carries no ?org=. Optional (single-organization deployments). */
+  CAREERS_DEFAULT_TENANT_SLUG: process.env.CAREERS_DEFAULT_TENANT_SLUG?.trim().toLowerCase() || undefined,
   /** Set to "true" only for local load testing. */
   RATE_LIMIT_DISABLED: process.env.RATE_LIMIT_DISABLED === 'true',
 };

@@ -53,6 +53,13 @@ function WorkSchedulesIndex() {
   return <Navigate to={first ? assignTabPath(first.key) : '/unauthorized'} replace />;
 }
 
+/** /recruitment goes to the first recruitment screen this user can open. */
+function RecruitmentIndex() {
+  const { canAny, me } = useAuth();
+  const items = visibleGroups(MAIN_NAV, canAny, !!me?.employee).flatMap((g) => g.items).filter((i) => i.to.startsWith('/recruitment/'));
+  return <Navigate to={items[0]?.to ?? '/unauthorized'} replace />;
+}
+
 function RouteError() {
   const error = useRouteError();
   return <div className="p-6"><ErrorState error={error} onRetry={() => window.location.reload()} /></div>;
@@ -80,6 +87,17 @@ export const routes: RouteObject[] = [
       },
       { path: '/unauthorized', element: <UnauthorizedPage /> },
 
+      // Public careers site: no sign-in, no portal chrome.
+      {
+        lazy: page(() => import('@/modules/recruitment/careers/CareersLayout')),
+        children: [
+          { path: '/careers', lazy: page(() => import('@/modules/recruitment/careers/CareersPage')) },
+          { path: '/careers/:jobSlug', lazy: page(() => import('@/modules/recruitment/careers/JobPage')) },
+          { path: '/careers/:jobSlug/apply', lazy: page(() => import('@/modules/recruitment/careers/ApplyPage')) },
+          { path: '/careers/:jobSlug/applied', lazy: page(() => import('@/modules/recruitment/careers/AppliedPage')) },
+        ],
+      },
+
       // Signed-in area
       {
         element: <RequireAuth />,
@@ -98,6 +116,24 @@ export const routes: RouteObject[] = [
                   { index: true, lazy: guarded(['employee.view'], () => import('@/modules/employees/EmployeesListPage')) },
                   // Own record is allowed by the API without employee.view; others need it.
                   { path: ':employeeId', handle: { crumb: 'Profile' }, lazy: page(() => import('@/modules/employees/EmployeeDetailPage')) },
+                ],
+              },
+              {
+                path: '/recruitment',
+                handle: { crumb: 'Recruitment' },
+                children: [
+                  { index: true, element: <RecruitmentIndex /> },
+                  { path: 'pipeline', handle: { crumb: 'Pipeline' }, lazy: guarded(PERMS.recruitmentPipeline, () => import('@/modules/recruitment/PipelinePage')) },
+                  {
+                    path: 'candidates',
+                    handle: { crumb: 'Candidates', crumbTo: '/recruitment/candidates' },
+                    children: [
+                      { index: true, lazy: guarded(PERMS.recruitmentCandidates, () => import('@/modules/recruitment/CandidatesPage')) },
+                      { path: ':candidateId', handle: { crumb: 'Profile' }, lazy: guarded(PERMS.recruitmentCandidates, () => import('@/modules/recruitment/CandidateDetailPage')) },
+                    ],
+                  },
+                  { path: 'interviews', handle: { crumb: 'Interviews' }, lazy: guarded(PERMS.recruitmentInterviews, () => import('@/modules/recruitment/InterviewsPage')) },
+                  { path: 'configuration', handle: { crumb: 'Configuration' }, lazy: guarded(PERMS.recruitmentConfig, () => import('@/modules/recruitment/ConfigurationPage')) },
                 ],
               },
               {
